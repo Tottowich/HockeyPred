@@ -13,7 +13,7 @@ import sys
 import re
 import datetime as dt
 import matplotlib.pyplot as plt
-from .Representations import Record, Season, Game, GameStats,TeamStats
+from .Representations import Record, Season, Game, GameStats,TeamStats,Date
 """
 Team specific features:
 * Powerplay precentage up to that point in the season (PP%)
@@ -60,7 +60,7 @@ from collections import OrderedDict
 class Team:
     name: str
     team_id: int
-    team_stats: OrderedDict
+    team_stats: TeamStats
     categories: List[str]
     def __init__(self, name, team_id, season):
         self.name = name
@@ -69,27 +69,18 @@ class Team:
         self.categories = None
         self.record = Record(season, self)
         self.team_stats = TeamStats(self)
-    def add_stats(self, date, stats:GameStats):
+    def add_stats(self, stats:GameStats):
         if not len(self.played_dates):
             # If the team has not played yet, then the categories should be set.
-            self.categories = list(stats.keys())
-        self.team_stats[date] = stats
-        self.played_dates.append(date)
+            self.categories = stats.categories
+        self.team_stats.add_stats(stats)
     def get_stats(self, date):
         return self.team_stats[date]
     def add_game(self, date,game:Game):
-        # This should add the stats of a game to the team_stats cumulative stats.
-        # This should be done by adding the stats of the game to the stats of the previous game.
-        # If the team has no stats yet, then the stats of the game should be added to the team_stats.
-        if not len(self.played_dates):
-            self.add_stats(date, game.stats)
-        else:
-            # Get the stats of the previous game
-            #previous_stats = self.get_stats(self.played_dates[-1])
-            # Add the stats of the game to the stats of the previous game
-            new_stats = self.team_stats+game.stats # See GameStats class for implementation of the + operator.
-            # Add the new stats to the team_stats
-            self.add_stats(date, new_stats)
+        self.played_dates.append(date)
+        assert self.name in game.teams
+        home = game.home_team == self.name
+        self.record.add_game(date, game)
     def __eq__(self, __o: object) -> bool:
         if isinstance(__o, Team):
             return self.team_id == __o.team_id
@@ -109,6 +100,11 @@ class Team:
             # Otherwise, return the stats of the last game played.
             else:
                 return self.get_stats(self.played_dates[-1])
+    def home_stats_to_date(self, date:Date):
+        # If the team has not played yet:
+        if not len(self.team_stats):
+            raise NotImplementedError("The team has not played yet.")
+        self.team_stats
             
 
 
