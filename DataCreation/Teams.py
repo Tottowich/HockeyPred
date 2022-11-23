@@ -5,7 +5,7 @@
 # How to install to venv: pip install -e .
 
 from dataclasses import dataclass
-from typing import List
+from typing import List,Dict
 import numpy as np
 import pandas as pd
 import os
@@ -13,7 +13,7 @@ import sys
 import re
 import datetime as dt
 import matplotlib.pyplot as plt
-from .Representations import Record, Season, Game, GameStats,TeamStats,Date
+from .Representations import Record, SeasonID, TeamID,Game, GameStats,TeamStats,Date
 """
 Team specific features:
 * Powerplay precentage up to that point in the season (PP%)
@@ -55,57 +55,124 @@ from collections import OrderedDict
 
 # Given a date and a Team class object the statistics of that team up to that point in the season should be returned.
 
-# Import ordered dictionary
 @dataclass
 class Team:
-    name: str
-    team_id: int
-    team_stats: TeamStats
-    categories: List[str]
-    def __init__(self, name, team_id, season):
-        self.name = name
+    team_id: TeamID
+    season_id: SeasonID
+    def __init__(self, team_id:TeamID, season_id:SeasonID):
         self.team_id = team_id
         self.played_dates = []
         self.categories = None
-        self.record = Record(season, self)
+        self.season_id = season_id
+        self.record = Record(season_id, self)
         self.team_stats = TeamStats(self)
     def add_stats(self, stats:GameStats):
         if not len(self.played_dates):
             # If the team has not played yet, then the categories should be set.
             self.categories = stats.categories
         self.team_stats.add_stats(stats)
-    def get_stats(self, date):
-        return self.team_stats[date]
-    def add_game(self, date,game:Game):
-        self.played_dates.append(date)
-        assert self.name in game.teams
-        home = game.home_team == self.name
-        self.record.add_game(date, game)
+    def total(self)->GameStats:
+        return self.team_stats.total()
+    def total_to_date(self, date:Date)->GameStats:
+        return self.team_stats.total_to_date(date)
+    def average(self)->GameStats:
+        return self.team_stats.average()
+    def average_to_date(self, date:Date)->GameStats:
+        return self.team_stats.average_to_date(date)
+    def home_total(self)->GameStats:
+        return self.team_stats.home_total()
+    def home_total_to_date(self, date:Date)->GameStats:
+        return self.team_stats.home_total_to_date(date)
+    def home_average(self)->GameStats:
+        return self.team_stats.home_average()
+    def home_average_to_date(self, date:Date)->GameStats:
+        return self.team_stats.home_average_to_date(date)
+    def away_total(self)->GameStats:
+        return self.team_stats.away_total()
+    def away_total_to_date(self, date:Date)->GameStats:
+        return self.team_stats.away_total_to_date(date)
+    def away_average(self)->GameStats:
+        return self.team_stats.away_average()
+    def away_average_to_date(self, date:Date)->GameStats:
+        return self.team_stats.away_average_to_date(date)
+    def get_stat(self, stat:str, date:Date=None)->GameStats:
+        return self.team_stats.get_stat(stat, date)
+    def add_game(self, game:Game)->None:
+        self.played_dates.append(game.date)
+        assert self.id in game.teams, f"{self.id} is not in {game.teams}"
+        home = game.home_team == self
+        self.record.add_game(game.date, game)
+        self.team_stats.add_game(game, home)
+        
+    @property
+    def name(self)->str:
+        return self.team_id.name
+    @property
+    def id(self)->TeamID:
+        return self.team_id
+    @property
+    def city(self)->str:
+        return self.team_id.city
+    @property
+    def abbreviation(self)->str:
+        return self.team_id.abbreviation
     def __eq__(self, __o: object) -> bool:
         if isinstance(__o, Team):
-            return self.team_id == __o.team_id
+            return self.id == __o.id
+        elif isinstance(__o, TeamID):
+            return self.id == __o
         else:
             return False
-    def get_stats_up_to_date(self, date):
-        # If the team has not played yet:
-        if not len(self.team_stats):
-            raise NotImplementedError("The team has not played yet.")
-            # TODO: Decide what to do here.
-        # If the team has played but not on the given date:
-        elif date not in self.team_stats.keys():
-            # Check if the date is before the first game of the team
-            if date < self.played_dates[0]:
-                raise NotImplementedError("The team has not played yet.")
-                # TODO: Decide what to do here, probably return None and handle elsewhere.
-            # Otherwise, return the stats of the last game played.
-            else:
-                return self.get_stats(self.played_dates[-1])
-    def home_stats_to_date(self, date:Date):
-        # If the team has not played yet:
-        if not len(self.team_stats):
-            raise NotImplementedError("The team has not played yet.")
-        self.team_stats
-            
+    def __hash__(self) -> int:
+        return hash(self.team_id)
+    def __str__(self) -> str:
+        # A small summary of the team´s statistics.
+        return f"{self.name} ({self.id}) - {self.season_id} - {self.record}"
+    def plot(self, metric="Total",title:str=None, xlabel:str=None, ylabel:str=None, **kwargs):
+        return self.team_stats.plot(metric=metric,title=title, xlabel=xlabel, ylabel=ylabel, **kwargs)
+
+
+class TeamList:
+    def __init__(self) -> None:
+        self.teams = []
+        self.team_dict = {}
+    def add_team(self, team:Team):
+        self.teams.append(team)
+        self.team_dict[team.name] = team
+    def sort_by_id(self)->List[Team]:
+        return sorted(self.teams, key=lambda x: x.id)
+    def sort_by_name(self)->List[Team]:
+        return sorted(self.teams, key=lambda x: x.name)
+    def sort_by_city(self)->List[Team]:
+        return sorted(self.teams, key=lambda x: x.city)
+    def sort_by_stat(self, stat:str)->List[Team]:
+        return sorted(self.teams, key=lambda x: x.get_stats(stat))
+    def __getitem__(self, item)->Team:
+        return self.team_dict[item]
+    def __len__(self)->int:
+        return len(self.teams)
+    def __iter__(self):
+        return iter(self.teams)
+    def __contains__(self, item):
+        return item in self.teams
+    def __eq__(self, __o: object) -> bool:
+        raise NotImplementedError("Not implemented yet.")
+    def __repr__(self):
+        return f"TeamList({self.team_names})"
+    def __str__(self):
+        return f"TeamList({self.team_names})"
+    @property
+    def team_names(self)->List[str]:
+        return [team.name for team in self.teams]
+    @property
+    def team_ids(self)->List[TeamID]:
+        return [team.id for team in self.teams]
+    @property
+    def team_abbreviations(self)->List[str]:
+        return [team.abbreviation for team in self.teams]
+    @property
+    def team_cities(self)->List[str]:
+        return [team.city for team in self.teams]
 
 
 
