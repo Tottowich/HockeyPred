@@ -5,7 +5,5 @@ def main():
     print(Pitsburgh)
     Pitsburgh.plot("average")
     (Pitsburgh.total()-Vancouver.total()).plot()
-
-
 if __name__ == '__main__':
     main()

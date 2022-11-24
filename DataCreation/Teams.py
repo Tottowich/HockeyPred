@@ -5,7 +5,7 @@
 # How to install to venv: pip install -e .
 
 from dataclasses import dataclass
-from typing import List,Dict
+from typing import List,Dict, Union, Tuple, Optional
 import numpy as np
 import pandas as pd
 import os
@@ -103,7 +103,16 @@ class Team:
         home = game.home_team == self
         self.record.add_game(game.date, game)
         self.team_stats.add_game(game, home)
-        
+    def get_game_stats(self, occasion:Union[Date,Game])->GameStats:
+        if isinstance(occasion, Date):
+            date = occasion
+        elif isinstance(occasion, Game):
+            date = occasion.date
+        else:
+            raise TypeError(f"occasion must be either Date or Game, not {type(occasion)}")
+        return self.team_stats.get_game_stats(date)
+    def dates_played(self)->List[Date]:
+        return self.played_dates
     @property
     def name(self)->str:
         return self.team_id.name
@@ -128,17 +137,19 @@ class Team:
     def __str__(self) -> str:
         # A small summary of the team´s statistics.
         return f"{self.name} ({self.id}) - {self.season_id} - {self.record}"
+    def __repr__(self) -> str:
+        return f"Team({self.id}, {self.season_id})"
     def plot(self, metric="Total",title:str=None, xlabel:str=None, ylabel:str=None, **kwargs):
         return self.team_stats.plot(metric=metric,title=title, xlabel=xlabel, ylabel=ylabel, **kwargs)
 
 
 class TeamList:
-    def __init__(self) -> None:
-        self.teams = []
+    def __init__(self,teams:Optional[List[Team]]=None) -> None:
+        self.teams = teams if teams is not None else []
         self.team_dict = {}
     def add_team(self, team:Team):
         self.teams.append(team)
-        self.team_dict[team.name] = team
+        self.team_dict[team.id] = team
     def sort_by_id(self)->List[Team]:
         return sorted(self.teams, key=lambda x: x.id)
     def sort_by_name(self)->List[Team]:
@@ -146,8 +157,8 @@ class TeamList:
     def sort_by_city(self)->List[Team]:
         return sorted(self.teams, key=lambda x: x.city)
     def sort_by_stat(self, stat:str)->List[Team]:
-        return sorted(self.teams, key=lambda x: x.get_stats(stat))
-    def __getitem__(self, item)->Team:
+        return sorted(self.teams, key=lambda x: x.get_stat(stat))
+    def __getitem__(self, item:TeamID)->Team:
         return self.team_dict[item]
     def __len__(self)->int:
         return len(self.teams)

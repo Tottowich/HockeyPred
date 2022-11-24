@@ -95,7 +95,7 @@ class SeasonID:
         return f"Season {self.season_id} with {self.number_of_teams} teams and {self.number_of_games} games."
 @dataclass
 class TeamID:
-    def __init__(self, team_name,team_id=None, team_abbreviation=None, team_city=None):
+    def __init__(self, team_name,team_id:int=None, team_abbreviation:str=None, team_city:str=None):
         self._team_name = team_name
         self._team_id = team_id
         self._team_abbreviation = team_abbreviation
@@ -115,11 +115,11 @@ class TeamID:
     def city(self):
         return self._team_city
     def __str__(self):
-        s = f"- Team name: {self.name}"
-        s += f"- ID: {self.id}" if self.id is not None else ""
-        s += f"- Abrv: {self.abbreviation}" if self.abbreviation is not None else ""
-        s += f"- City: {self.city}" if self.city is not None else ""
-        s += "-"
+        s = f"( Team name: {self.name}"
+        s += f" ID: {self.id}" if self.id is not None else ""
+        s += f" Abrv: {self.abbreviation}" if self.abbreviation is not None else ""
+        s += f" City: {self.city}" if self.city is not None else ""
+        s += " )"
         return s
     def __eq__(self, __o: object) -> bool:
         if isinstance(__o, TeamID):
@@ -135,6 +135,21 @@ class TeamID:
             return self.id == __o.id
         elif isinstance(__o, str):
             return self.name == __o
+    def __repr__(self):
+        return f"{self.name} ({self.id})"
+    def __lt__(self, other):
+        return self.id < other.id
+    def __gt__(self, other):
+        return self.id > other.id
+    def __le__(self, other):
+        return self.id <= other.id
+    def __ge__(self, other):
+        return self.id >= other.id
+    def __ne__(self, other):
+        return self.id != other.id
+    def __eq__(self, other):
+        return self.id == other.id
+    
     
 
 # Each team has a record of wins, losses and ties.
@@ -157,8 +172,11 @@ class Stats:
     def __str__(self):
         return f"---Date: {self.date}---\nStats: {dict_to_print_string(self.stats)},\n Home: {self.home}"
     def __add__(self, other):
-        new_stats = self.stats
-        assert issubclass(type(other), Stats), "Can only add Stats objects"
+        if other==0:
+            print("Adding 0")
+            return Stats(self.stats, self.date, self.home)
+        new_stats = self.stats.copy() # Copy the stats dictionary
+        assert issubclass(type(other), Stats), f"Can only add Stats objects to Stats objects. Got {type(other)}" 
         self_keys = self.stats.keys()
         other_keys = other.stats.keys()
         for key in other_keys:
@@ -220,6 +238,8 @@ class Stats:
         return self.stats[key]
     def __eq__(self, other):
         raise NotImplementedError("Cannot compare Stats objects")
+    def __radd__(self, other): # This is called when the other object is not a Stats object
+        return self + other
     def plot(self, ax: plt.Axes=None, title: str=None, xlabel: str=None, ylabel: str=None, **kwargs):
         fig = None
         if ax is None:
@@ -371,6 +391,12 @@ class TeamStats:
         return self.away_stats_calendar.average()
     def away_average_to_date(self, final_date:Date=None):
         return self.away_stats_calendar.average_to_date(final_date)
+    def get_game_stats(self, date:Union[Date,List[Date]]):
+        if isinstance(date, list):
+            # Sum the stats for each date
+            return 
+        else:
+            return self.stats_calendar[date]
     def get_stat(self,stat_name:str, date:Date=None):
         if date is None:
             return self.total()[stat_name]
