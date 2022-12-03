@@ -5,7 +5,7 @@
 # How to install to venv: pip install -e .
 
 from dataclasses import dataclass
-from typing import List,Dict, Union, Tuple, Optional
+from typing import List,Dict, Union, Tuple, Optional, TypeVar
 import numpy as np
 import pandas as pd
 import os
@@ -13,7 +13,7 @@ import sys
 import re
 import datetime as dt
 import matplotlib.pyplot as plt
-from .Representations import Record, SeasonID, TeamID,Game, GameStats,TeamStats,Date
+from .Representations import Record, SeasonID, TeamID,Game, GameStats,TeamStats,Date,Stats,DateList
 """
 Team specific features:
 * Powerplay precentage up to that point in the season (PP%)
@@ -61,48 +61,71 @@ class Team:
     season_id: SeasonID
     def __init__(self, team_id:TeamID, season_id:SeasonID):
         self.team_id = team_id
-        self.played_dates = []
         self.categories = None
         self.season_id = season_id
-        self.record = Record(season_id, self)
-        self.team_stats = TeamStats(self)
+        self.record = Record(season_id, self.team_id)
+        self.team_stats = TeamStats(self.team_id)
+        self.played_dates = DateList()
     def add_stats(self, stats:GameStats):
         if not len(self.played_dates):
             # If the team has not played yet, then the categories should be set.
             self.categories = stats.categories
         self.team_stats.add_stats(stats)
-    def total(self)->GameStats:
+    def total(self)->Stats:
+        """
+        Returns the total stats of the team.
+        """
         return self.team_stats.total()
-    def total_to_date(self, date:Date)->GameStats:
+    def total_to_date(self, date:Date)->Stats:
+        """
+        Returns the total stats of the team up to that date.
+        """
         return self.team_stats.total_to_date(date)
-    def average(self)->GameStats:
+    def average(self)->Stats:
+        """Returns the average stats of the team."""
         return self.team_stats.average()
-    def average_to_date(self, date:Date)->GameStats:
+    def average_to_date(self, date:Date)->Stats:
+        """Returns the average stats of the team up to that date."""
         return self.team_stats.average_to_date(date)
-    def home_total(self)->GameStats:
+    def home_total(self)->Stats:
+        """
+        Returns the total stats of the team at home.
+        Only the games played at home are considered."""
         return self.team_stats.home_total()
-    def home_total_to_date(self, date:Date)->GameStats:
+    def home_total_to_date(self, date:Date)->Stats:
+        """ Returns the total stats of the team at home up to that date.
+        Only the games played at home are considered."""
         return self.team_stats.home_total_to_date(date)
-    def home_average(self)->GameStats:
+    def home_average(self)->Stats:
+        """
+        Returns the average stats of the team at home.
+        Only the games played at home are considered."""
         return self.team_stats.home_average()
-    def home_average_to_date(self, date:Date)->GameStats:
+    def home_average_to_date(self, date:Date)->Stats:
+        """ Returns the average stats of the team at home up to that date."""
         return self.team_stats.home_average_to_date(date)
-    def away_total(self)->GameStats:
+    def away_total(self)->Stats:
+        """ Returns the total stats of the team away."""
         return self.team_stats.away_total()
-    def away_total_to_date(self, date:Date)->GameStats:
+    def away_total_to_date(self, date:Date)->Stats:
+        """ Returns the total stats of the team away up to that date."""
         return self.team_stats.away_total_to_date(date)
-    def away_average(self)->GameStats:
+    def away_average(self)->Stats:
+        """ Returns the average stats of the team away."""
         return self.team_stats.away_average()
-    def away_average_to_date(self, date:Date)->GameStats:
+    def away_average_to_date(self, date:Date)->Stats:
+        """ Returns the average stats of the team away up to that date."""
         return self.team_stats.away_average_to_date(date)
-    def get_stat(self, stat:str, date:Date=None)->GameStats:
+    def get_stat(self, stat:str, date:Date=None)->Stats:
+        """ Returns the stat of the team up to that date."""
         return self.team_stats.get_stat(stat, date)
     def add_game(self, game:Game)->None:
-        self.played_dates.append(game.date)
+        """ Adds a game to the team."""
+        self.played_dates.add_date(game.date)
         assert self.id in game.teams, f"{self.id} is not in {game.teams}"
-        home = game.home_team == self
-        self.record.add_game(game.date, game)
-        self.team_stats.add_game(game, home)
+        home = game.home_team_id == self.id
+        result = self.record.add_game(game.date, game) # Counts the wins, losses and ties.
+        self.team_stats.add_game(game, home) # Adds the stats of the game to the team.
     def get_game_stats(self, occasion:Union[Date,Game])->GameStats:
         if isinstance(occasion, Date):
             date = occasion
@@ -111,8 +134,11 @@ class Team:
         else:
             raise TypeError(f"occasion must be either Date or Game, not {type(occasion)}")
         return self.team_stats.get_game_stats(date)
-    def dates_played(self)->List[Date]:
+    def dates_played(self)->DateList:
         return self.played_dates
+    @property
+    def streak(self)->int:
+        return self.record.streak
     @property
     def name(self)->str:
         return self.team_id.name
@@ -142,24 +168,42 @@ class Team:
     def plot(self, metric="Total",title:str=None, xlabel:str=None, ylabel:str=None, **kwargs):
         return self.team_stats.plot(metric=metric,title=title, xlabel=xlabel, ylabel=ylabel, **kwargs)
 
-
 class TeamList:
+    TL = TypeVar("TL", bound="TeamList")
     def __init__(self,teams:Optional[List[Team]]=None) -> None:
         self.teams = teams if teams is not None else []
-        self.team_dict = {}
+        self.team_dict = OrderedDict()
     def add_team(self, team:Team):
         self.teams.append(team)
         self.team_dict[team.id] = team
     def sort_by_id(self)->List[Team]:
-        return sorted(self.teams, key=lambda x: x.id)
+        return self.teams.sort(key=lambda x: x.id) # Inplace sort
+        # return sorted(self.teams, key=lambda x: x.id) # Not inplace sort
     def sort_by_name(self)->List[Team]:
-        return sorted(self.teams, key=lambda x: x.name)
+        return self.teams.sort(key=lambda x: x.name) # Inplace sort
+        #return sorted(self.teams, key=lambda x: x.name) # Not inplace sort
     def sort_by_city(self)->List[Team]:
-        return sorted(self.teams, key=lambda x: x.city)
-    def sort_by_stat(self, stat:str)->List[Team]:
-        return sorted(self.teams, key=lambda x: x.get_stat(stat))
+        return self.teams.sort(key=lambda x: x.city) # Inplace sort
+        #return sorted(self.teams, key=lambda x: x.city)
+    def sort_by_stat(self, stat:str,date:Date=None,reverse:bool=True)->List[Team]:
+        return self.teams.sort(key=lambda x: x.get_stat(stat,date), reverse=reverse) # Inplace sort
+        #return sorted(self.teams, key=lambda x: x.get_stat(stat))
+    def get_team_stats_to_date(self, date:Date)->List[GameStats]:
+        return [team.total_to_date(date) for team in self.teams]
+    def get_team_stats(self)->List[GameStats]:
+        return [team.total() for team in self.teams]
+    def print_stat_ranking(self, stat:str="Goals", date:Date=None, reverse:bool=True)->None:
+        self.sort_by_stat(stat, date, reverse)
+        print(f"Rankings by {stat}"+(" to date" if date is not None else ""))
+        for i, team in enumerate(self.teams):
+            print(f"{i+1}. {team.name} ({team.id}) - {team.get_stat(stat, date)}")
     def __getitem__(self, item:TeamID)->Team:
-        return self.team_dict[item]
+        if isinstance(item, TeamID):
+            return self.team_dict[item]
+        elif isinstance(item, int):
+            return self.teams[item]
+        else:
+            raise TypeError(f"item must be either TeamID or int, not {type(item)}")
     def __len__(self)->int:
         return len(self.teams)
     def __iter__(self):
@@ -184,6 +228,5 @@ class TeamList:
     @property
     def team_cities(self)->List[str]:
         return [team.city for team in self.teams]
-
 
 

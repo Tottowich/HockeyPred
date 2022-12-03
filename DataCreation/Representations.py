@@ -51,7 +51,6 @@ class Date:
                 return Date(self.year, self.month, self.day + 1)
         else:
             raise ValueError("Invalid date")
-
     def __str__(self):
         return f"{self.year}-{self.month}-{self.day}"
     def __repr__(self):
@@ -70,6 +69,52 @@ class Date:
         return self.date != other.date
     def __hash__(self):
         return hash(self.date)
+class DateList:
+    def __init__(self, dates: List[Date]=None):
+        self.dates = dates if dates is not None else []
+    def add_date(self, date: Date):
+        # The date should be inserted in order of date
+        # if date not in self.dates:
+        #     self.dates.append(date)
+        #     self.dates.sort()
+        self.dates.append(date)
+    def get_closest_date(self, date: Date, direction: str="below"):
+        if direction == "below":
+            seq = [d for d in self.dates if d <= date]
+            if len(seq) == 0:
+                return None
+            return max(seq)
+        elif direction == "above":
+            seq = [d for d in self.dates if d >= date]
+            if len(seq) == 0:
+                return None
+            return min(seq)
+        else:
+            raise ValueError("Invalid direction")
+    def get_n_closest_dates(self, date: Date, n: int=1, direction: str="below"):
+        assert n > 0, "n must be greater than 0"
+        if direction == "below":
+            return sorted([d for d in self.dates if d <= date], reverse=True)[:n]
+        elif direction == "above":
+            return sorted([d for d in self.dates if d >= date])[:n]
+        else:
+            raise ValueError("Invalid direction")
+    def __repr__(self):
+        return f"DateList({self.dates})"
+    def __str__(self):
+        s = f"DateList:\n"
+        for date in self.dates:
+            s += f"{date}, "
+        return s
+    def __getitem__(self, index: Union[int, slice]):
+        return self.dates[index]
+    def __len__(self):
+        return len(self.dates)
+    def __iter__(self):
+        return iter(self.dates)
+    def __contains__(self, date):
+        return date in self.dates
+            
 
         
 @dataclass
@@ -107,19 +152,15 @@ class TeamID:
         return self._team_id
     @property
     def name(self):
-        return self._team_name
+        return self._team_name if self._team_name is not None else self.id # Fall back to id
     @property
     def abbreviation(self):
-        return self._team_abbreviation
+        return self._team_abbreviation if self._team_abbreviation is not None else self.name
     @property
     def city(self):
-        return self._team_city
-    def __str__(self):
-        s = f"( Team name: {self.name}"
-        s += f" ID: {self.id}" if self.id is not None else ""
-        s += f" Abrv: {self.abbreviation}" if self.abbreviation is not None else ""
-        s += f" City: {self.city}" if self.city is not None else ""
-        s += " )"
+        return self._team_city if self._team_city is not None else self.name # Fall back to name
+    def __repr__(self):
+        s = f"Team name: {self.name}, ID: {self.id}"
         return s
     def __eq__(self, __o: object) -> bool:
         if isinstance(__o, TeamID):
@@ -147,8 +188,6 @@ class TeamID:
         return self.id >= other.id
     def __ne__(self, other):
         return self.id != other.id
-    def __eq__(self, other):
-        return self.id == other.id
     
     
 
@@ -171,74 +210,88 @@ class Stats:
         return list(self.stats.keys())
     def __str__(self):
         return f"---Date: {self.date}---\nStats: {dict_to_print_string(self.stats)},\n Home: {self.home}"
-    def __add__(self, other):
+    def __add__(self, other:"Stats"):
         if other==0:
-            print("Adding 0")
             return Stats(self.stats, self.date, self.home)
         new_stats = self.stats.copy() # Copy the stats dictionary
         assert issubclass(type(other), Stats), f"Can only add Stats objects to Stats objects. Got {type(other)}" 
         self_keys = self.stats.keys()
         other_keys = other.stats.keys()
-        for key in other_keys:
-            if key in self_keys:
-                new_stats[key] += other.stats[key]
-            else:
-                new_stats[key] = other.stats[key]
+        # Sum the stats that are in both else set to value where it is not in both
+        new_stats = dict([(key, self.stats[key] + other.stats[key]) if key in self_keys and key in other_keys else (key, self.stats[key] if key in self_keys else other.stats[key]) for key in self_keys | other_keys])
+        # for key in other_keys:
+        #     if key in self_keys:
+        #         new_stats[key] += other.stats[key]
+        #     else:
+        #         new_stats[key] = other.stats[key]
             
         return Stats(new_stats, other.date,self.home and other.home)
-    def __sub__(self, other): # Subtracting stats in order: self - other
+    def __sub__(self, other:"Stats"): # Subtracting stats in order: self - other
         new_stats = self.stats
         assert issubclass(type(other), Stats), "Can only subtract Stats objects"
         self_keys = self.stats.keys()
         other_keys = other.stats.keys()
-        #date = self.date
-        for key in other_keys:
-            if key in self_keys:
-                new_stats[key] -= other.stats[key]
-            else:
-                new_stats[key] = -other.stats[key]
+        # Subtract the stats that are in both else set to value where it is not in both
+        new_stats = dict([(key, self.stats[key] - other.stats[key]) if key in self_keys and key in other_keys else (key, self.stats[key] if key in self_keys else -other.stats[key]) for key in self_keys | other_keys])
+        # for key in other_keys:
+        #     if key in self_keys:
+        #         new_stats[key] -= other.stats[key]
+        #     else:
+        #         new_stats[key] = -other.stats[key]
         return Stats(new_stats, other.date,self.home)
-    def __mul__(self, other):
+    def __mul__(self, other:"Stats"):
         new_stats = self.stats
         date = self.date
         if issubclass(type(other), Stats):
             self_keys = self.stats.keys()
             other_keys = other.stats.keys()
             date = other.date
-            for key in other_keys:
-                if key in self_keys:
-                    new_stats[key] *= other.stats[key]
-                else:
-                    new_stats[key] = other.stats[key]
+            # Multiply the stats that are in both else set to value where it is not in both
+            new_stats = dict([(key, self.stats[key] * other.stats[key]) if key in self_keys and key in other_keys else (key, self.stats[key] if key in self_keys else other.stats[key]) for key in self_keys | other_keys])
+            # for key in other_keys:
+            #     if key in self_keys:
+            #         new_stats[key] *= other.stats[key]
+            #     else:
+            #         new_stats[key] = other.stats[key]
         elif issubclass(type(other), int) or issubclass(type(other), float):
-            for key in self.stats.keys():
-                new_stats[key] = self.stats[key] * other
+            # multiply over dictionary
+            new_stats = dict([(key, value*other) for key, value in self.stats.items()])
+            # for key in self.stats.keys():
+            #     new_stats[key] = self.stats[key] * other
             return Stats(new_stats, date,self.home)
         else:
             raise NotImplementedError(f"Cannot multiply Stats object with type {type(other)}")
-    def __truediv__(self, other): # Divide stats by key in order: self / other
+    def __truediv__(self, other:"Stats"): # Divide stats by key in order: self / other
         new_stats = self.stats
         date = self.date
         if issubclass(type(other), Stats):
             self_keys = self.stats.keys()
             other_keys = other.stats.keys()
             date = other.date
-            for key in other_keys:
-                if key in self_keys:
-                    new_stats[key] = self.stats[key] / other.stats[key]
-                else:
-                    new_stats[key] = other.stats[key]
+            # Divide the stats that are in both else set to value where it is not in both
+            new_stats = dict([(key, self.stats[key] / other.stats[key]) if key in self_keys and key in other_keys else (key, self.stats[key] if key in self_keys else other.stats[key]) for key in self_keys | other_keys])
+            # for key in other_keys:
+            #     if key in self_keys:
+            #         new_stats[key] = self.stats[key] / other.stats[key]
+            #     else:
+            #         new_stats[key] = other.stats[key]
         elif issubclass(type(other), int) or issubclass(type(other), float):
-            for key in self.stats.keys():
-                new_stats[key] = self.stats[key] / other
+            # divide over dictionary
+            new_stats = dict([(key, value/other) for key, value in self.stats.items()])
+            # for key in self.stats.keys():
+            #     new_stats[key] = self.stats[key] / other
         return Stats(new_stats, date,self.home)
     def __len__(self):
         return len(self.stats)
     def __getitem__(self, key):
-        return self.stats[key]
-    def __eq__(self, other):
+        v = self.stats.get(key, None)
+        if v is None:
+            print(f"WARNING: Key \'{key}\' not found in stats, replacing with 0")
+            return 0
+        return v
+    def __eq__(self, other:"Stats"):
         raise NotImplementedError("Cannot compare Stats objects")
-    def __radd__(self, other): # This is called when the other object is not a Stats object
+    def __radd__(self, other:"Stats"): # This is called when the other object is not a Stats object
         return self + other
     def plot(self, ax: plt.Axes=None, title: str=None, xlabel: str=None, ylabel: str=None, **kwargs):
         fig = None
@@ -269,8 +322,9 @@ class Stats:
 @dataclass # This class is used to represent statsheets
 class GameStats(Stats):
     #stats: Dict[str, Union[int, float]]
-    def __init__(self, team:Team,date:Date,stats:Dict[str, Union[int, float]],home:bool):
+    def __init__(self, team:TeamID,date:Date,stats:Dict[str, Union[int, float]],home:bool):
         super().__init__(stats, date,home)
+        assert issubclass(type(team), TeamID), f"Team must be a TeamID object, got {type(team)}"
         self.team = team
         #self.stats = stats
         assert "Goals" in self.stats.keys(), "Score must be in the stats"
@@ -279,73 +333,82 @@ class GameStats(Stats):
         return f"\'{self.team.name}\' had the following stats on {self.date}:{dict_to_print_string(self.stats,8)}"
 @dataclass
 class StatList:
-    stats: OrderedDict[Date,Stats]
+    _stats: OrderedDict[Date,Stats]
     def __init__(self, stats:List[Stats]=None):
-        self.stats = OrderedDict()
+        self._stats = OrderedDict()
+        self._added_dates = DateList()
         if stats is not None:
             if isinstance(stats, list):
-                for stat in stats:
-                    assert issubclass(type(stat), Stats), "All elements in the list must be Stats objects"
-                    self.stats[stat.date] = stat
+                self._stats = OrderedDict([(stat.date, stat) for stat in stats if issubclass(type(stat), Stats)])
+                # for stat in stats:
+                #     assert issubclass(type(stat), Stats), "All elements in the list must be Stats objects"
+                #     self._stats[stat.date] = stat
             else:
                 assert issubclass(type(stats), Stats), "All elements in the list must be Stats objects"
-                self.stats[stats.date] = stats
+                self._stats[stats.date] = stats
     def plot(self, ax:plt.Axes=None,date=None,title: str=None, xlabel: str=None, ylabel: str=None, **kwargs):
         # Create a subplot for each stat
         game_stats = self.total_to_date(date)
         ax = game_stats.plot(ax=ax,title=title, xlabel=xlabel, ylabel=ylabel, **kwargs)
         return ax
     def __str__(self) -> str:
-        return f"Number of recorded stats: {len(self.stats)}:\n{[str(stat) for stat in self.stats]}"
+        return f"Number of recorded stats: {len(self._stats)}:\n{[str(stat) for stat in self._stats]}"
     def __add__(self, other): # Add results in combining stats for a longer list
         # Can bombine StatLists or Stats subclasses
         if issubclass(type(other), StatList):
-            return StatList(self.stats + other.stats)
+            return StatList(self._stats + other.stats)
         elif issubclass(type(other), Stats):
-            return StatList(self.stats + [other])
+            return StatList(self._stats + [other])
         else:
             raise ValueError(f"Cannot add StatList with type {type(other)}")
     def append(self, stat:Stats):
-        assert issubclass(type(stat), Stats), "Can only append Stats objects"
-        self.stats[stat.date] = stat
+        assert issubclass(type(stat), Stats), f"Can only append Stats objects to StatList, not {type(stat)}"
+        self._stats[stat.date] = stat
+        self._added_dates.add_date(stat.date)
     def __getitem__(self, date:Date):
-        return self.stats[date]
+        return self._stats[date]
     def __len__(self):
-        return len(self.stats)
+        return len(self._stats)
     def __iter__(self):
-        return iter(self.stats.items())
+        return iter(self._stats.items())
     def __contains__(self, date:Date):
-        return date in self.stats.keys()
+        return date in self._stats.keys()
     def __eq__(self, other):
         raise NotImplementedError("Cannot compare StatLists")
-    def total_to_date(self, final_date:Date=None):
-        cumulative_stats = Stats({}, final_date, True)
-        counter = 0
-        for date, stats in self:
-            if final_date is None or date <= final_date:
-                counter += 1
-                cumulative_stats += stats
-            else:
-                return cumulative_stats, counter # If date specified, return the stats up to that date and the number of games
-        return cumulative_stats
-    def total(self):
-        return self.total_to_date()
-    def average(self):
+    def total_to_date(self, final_date:Date=None)->Stats:
+        # cumulative_stats = Stats({}, final_date, True)
+        # counter = 0
+        # for date, stats in self:
+        #     if final_date is None or date <= final_date:
+        #         counter += 1
+        #         cumulative_stats += stats
+        cumulative = [stats for date, stats in self if final_date is None or date <= final_date]
+        return sum(cumulative), len(cumulative)
+        #return cumulative_stats, counter
+    def total(self)->Stats:
+        return self.total_to_date()[0]
+    def average(self)->Stats:
         return self.total() / len(self)
-    def average_to_date(self, final_date:Date=None):
+    def average_to_date(self, final_date:Date=None)->Stats:
         total, counter = self.total_to_date(final_date)
         return total / counter
     def last_n(self, n:int):
-        return StatList(list(self.stats.values())[-n:])
+        return StatList(list(self._stats.values())[-n:])
     def clear(self):
-        self.stats = OrderedDict() # Clear the stats
+        self._stats = OrderedDict() # Clear the stats
     @property
-    def added_dates(self):
-        return list(self.stats.keys())
+    def stats(self):
+        return self._stats
+    @property
+    def added_dates(self)->List[Date]:
+        return self._added_dates
+    @property
+    def available_stats(self)->List[str]:
+        return self.total().stats.keys()
     def sort(self):
-        self.stats = OrderedDict(sorted(self.stats.items(), key=lambda x: x[0]))
+        self._stats = OrderedDict(sorted(self._stats.items(), key=lambda x: x[0]))
 class TeamStats:
-    def __init__(self, team:Team):
+    def __init__(self, team:TeamID):
         self.team = team
         self.home_stats_calendar = StatList()
         self.away_stats_calendar = StatList()
@@ -367,7 +430,7 @@ class TeamStats:
     def stats_by_date(self, date:Date):
         assert date in self.stats_calendar.added_dates, "No stats for this date"
         return self.stats_calendar[date]
-    def total(self):
+    def total(self)->Stats:
         return self.stats_calendar.total()
     def total_to_date(self, final_date:Date=None):
         return self.stats_calendar.total_to_date(final_date)
@@ -392,9 +455,9 @@ class TeamStats:
     def away_average_to_date(self, final_date:Date=None):
         return self.away_stats_calendar.average_to_date(final_date)
     def get_game_stats(self, date:Union[Date,List[Date]]):
-        if isinstance(date, list):
+        if isinstance(date, (list, tuple,DateList)):
             # Sum the stats for each date
-            return 
+            return sum([self.stats_by_date(d) for d in date])
         else:
             return self.stats_calendar[date]
     def get_stat(self,stat_name:str, date:Date=None):
@@ -470,6 +533,9 @@ class TeamStats:
         self.home_stats_calendar.clear()
         self.away_stats_calendar.clear()
         self.stats_calendar.clear()
+    @property
+    def available_stats(self):
+        return self.stats_calendar.available_stats
     
     @property
     def home_games_played(self):
@@ -484,6 +550,8 @@ class TeamStats:
         return f"{self.team.name} has the following stats:\n{self.stats_calendar}"
     def __len__(self):
         return len(self.stats_calendar)
+    def __getitem__(self, date:Date):
+        return self.stats_calendar[date]
     def clear(self):
         self.home_stats_calendar.clear()
         self.away_stats_calendar.clear()
@@ -521,16 +589,16 @@ class Game:
     def tie(self):
         return self.home_score == self.away_score
     @property
-    def home_team(self):
+    def home_team_id(self):
         return self.home_stats.team
     @property
-    def away_team(self):
+    def away_team_id(self):
         return self.away_stats.team
     @property
     def teams(self):
-        return [self.home_team.id, self.away_team.id]
+        return [self.home_team_id, self.away_team_id]
     def __str__(self) -> str:
-        return f"{self.home_team.name} ({self.home_score}) vs {self.away_team.name} ({self.away_score})"
+        return f"{self.home_team_id.name} ({self.home_score}) vs {self.away_team_id.name} ({self.away_score})"
 
 
 
@@ -545,51 +613,79 @@ def dict_to_print_string(d, indent=0) -> str:
 @dataclass
 class Record:
     season: SeasonID
-    team: Team
+    team_id: TeamID
     wins: int
     losses: int
     ties: int
-    def __init__(self, season:SeasonID, team:Team):
+    def __init__(self, season:SeasonID, team_id:TeamID):
         self.season = season
-        self.team = team
+        self.team_id = team_id
         self._wins = 0
         self._losses = 0
         self._ties = 0
         self.streak = 0
-        self.history = []
-    def add_game(self,date:Date,game:Game):
+        self._history = OrderedDict()
+    def add_game(self,date:Date,game:Game)->int: 
+        """Adds a game to the record, and returns the result of the game.\n\n 1 for win, 0 for tie, -1 for loss"""
         assert game.season == self.season, "Game must be in the same season"
-        assert game.home_team == self.team or game.away_team == self.team, "Game must be for this team"
-        result = 0 # 1 for win, 0 for tie, -1 for loss
-        if game.home_win() and game.home_team == self.team:
-            result = 1
+        assert game.home_team_id == self.team_id or game.away_team_id == self.team_id, "Game must be for this team"
+        result = 0
+        if game.home_win() and game.home_team_id == self.team_id:
             self.add_win()
-            self.streak += 1
-        elif game.away_win() and game.away_team == self.team:
             result = 1
+        elif game.away_win() and game.away_team_id == self.team_id:
             self.add_win()
-            self.streak += 1
+            result = 1
         elif game.tie():
             self.add_tie()
-            self.streak = 0
+            result = 0
         else:
             self.add_loss()
-            self.streak = -1 if self.streak > 0 else self.streak - 1
-        self.history.append((date,game))
+            result = -1
+        self._add_history_entry(date, result)
+        return result
+    def _add_history_entry(self, date:Date, result:int):
+        self._history[date] = (result,self.w_l_t, self.streak)
+
     def add_win(self):
+        """Adds a win to the record"""
         self._wins += 1
+        if self.streak < 0:
+            self.streak = 1
+        else:
+            self.streak += 1
     def add_loss(self):
+        """Adds a loss to the record"""
         self._losses += 1
+        if self.streak > 0:
+            self.streak = -1
+        else:
+            self.streak -= 1
     def add_tie(self):
+        """Adds a tie to the record"""
         self._ties += 1
+        self.streak = 0
     def clear(self):
+        """Clears the record, resets all values to 0, keeps the same team and season"""
         self._wins = 0
         self._losses = 0
         self._ties = 0
         self.streak = 0
-        self.history = []
+        self._history = []
     def last_n(self, n:int):
-        return self.history[-n:]
+        """Returns the last n games in the record"""
+        # First check if n is valid:
+        assert n <= len(self._history), f"Cannot get last {n} games, only {len(self._history)} games in record."
+        assert n > 0, "n must be greater than 0"
+        # Now we can get the last n games:
+        raise NotImplementedError # TODO: Finish Last N Record.
+    def record_by_date(self, date:Date):
+        """Returns the record up to and including the given date"""
+        # First check if the date is valid:
+        assert date >= self._history[0][0], f"Date {date} is before the first game in the record."
+        # We need to sort the history by date:
+        history = sorted(self._history, key=lambda x: x[0]) # This is not done in place    
+        raise NotImplementedError #TODO Finish Record by date.
     @property
     def wins(self):
         return self._wins
@@ -599,6 +695,9 @@ class Record:
     @property
     def ties(self):
         return self._ties
+    @property
+    def w_l_t(self):
+        return (self.wins,self.losses,self.ties)
     @property
     def games_played(self):
         return self._wins + self._losses + self._ties
@@ -612,4 +711,4 @@ class Record:
     def tie_percentage(self):
         return self._ties / self.games_played
     def __str__(self) -> str:
-        return f"{self.team.name} has a record of {self._wins}-{self._losses}-{self._ties} in the {self.season.season_id} season."
+        return f"{self.team_id.name} has a record of {self._wins}-{self._losses}-{self._ties} in the {self.season.season_id} season."
