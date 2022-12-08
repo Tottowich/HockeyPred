@@ -119,13 +119,14 @@ class Team:
     def get_stat(self, stat:str, date:Date=None)->Stats:
         """ Returns the stat of the team up to that date."""
         return self.team_stats.get_stat(stat, date)
-    def add_game(self, game:Game)->None:
-        """ Adds a game to the team."""
+    def add_game(self, game:Game)->int:
+        """ Adds a game to the team. Returns the result of the game, 1 for win, 0 for tie and -1 for loss."""
         self.played_dates.add_date(game.date)
         assert self.id in game.teams, f"{self.id} is not in {game.teams}"
         home = game.home_team_id == self.id
         result = self.record.add_game(game.date, game) # Counts the wins, losses and ties.
         self.team_stats.add_game(game, home) # Adds the stats of the game to the team.
+        return result
     def get_game_stats(self, occasion:Union[Date,Game])->GameStats:
         if isinstance(occasion, Date):
             date = occasion
@@ -165,9 +166,10 @@ class Team:
         return f"{self.name} ({self.id}) - {self.season_id} - {self.record}"
     def __repr__(self) -> str:
         return f"Team({self.id}, {self.season_id})"
-    def plot(self, metric="Total",title:str=None, xlabel:str=None, ylabel:str=None, **kwargs):
-        return self.team_stats.plot(metric=metric,title=title, xlabel=xlabel, ylabel=ylabel, **kwargs)
-
+    def plot(self, metric="Total",title:str=None, xlabel:str=None, ylabel:str=None, **kwargs)->Tuple[plt.Figure,plt.Axes]:
+        fig,axs= self.team_stats.plot(metric=metric,title=title, xlabel=xlabel, ylabel=ylabel, **kwargs)        
+        plt.show()
+        return fig,axs
 class TeamList:
     TL = TypeVar("TL", bound="TeamList")
     def __init__(self,teams:Optional[List[Team]]=None) -> None:
@@ -176,18 +178,32 @@ class TeamList:
     def add_team(self, team:Team):
         self.teams.append(team)
         self.team_dict[team.id] = team
-    def sort_by_id(self)->List[Team]:
-        return self.teams.sort(key=lambda x: x.id) # Inplace sort
-        # return sorted(self.teams, key=lambda x: x.id) # Not inplace sort
-    def sort_by_name(self)->List[Team]:
-        return self.teams.sort(key=lambda x: x.name) # Inplace sort
-        #return sorted(self.teams, key=lambda x: x.name) # Not inplace sort
-    def sort_by_city(self)->List[Team]:
-        return self.teams.sort(key=lambda x: x.city) # Inplace sort
-        #return sorted(self.teams, key=lambda x: x.city)
-    def sort_by_stat(self, stat:str,date:Date=None,reverse:bool=True)->List[Team]:
-        return self.teams.sort(key=lambda x: x.get_stat(stat,date), reverse=reverse) # Inplace sort
-        #return sorted(self.teams, key=lambda x: x.get_stat(stat))
+    def sort_by_id(self,in_place:bool=False)->Union[List[Team],None]:
+        # return self.teams.sort(key=lambda x: x.id) # Inplace sort
+        if in_place:
+            return self.teams.sort(key=lambda x: x.id) # Inplace sort
+        else:
+            return sorted(self.teams, key=lambda x: x.id)
+    def sort_by_name(self,in_place:bool=False)->Union[List[Team],None]:
+        # return self.teams.sort(key=lambda x: x.name) # Inplace sort
+        if in_place:
+            return self.teams.sort(key=lambda x: x.name)
+        else:
+            return sorted(self.teams, key=lambda x: x.name)
+    def sort_by_city(self,in_place:bool=False)->Union[List[Team],None]:
+        # return self.teams.sort(key=lambda x: x.city) # Inplace sort
+        if in_place:
+            return self.teams.sort(key=lambda x: x.city)
+        else:
+            return sorted(self.teams, key=lambda x: x.city)
+    def sort_by_stat(self, stat:str,date:Date=None,reverse:bool=True,in_place:bool=False)->Union[List[Team],None]:
+        # return self.teams.sort(key=lambda x: x.get_stat(stat, date), reverse=reverse) # Inplace sort
+        if in_place:
+            return self.teams.sort(key=lambda x: x.get_stat(stat, date), reverse=reverse)
+        else:
+            return sorted(self.teams, key=lambda x: x.get_stat(stat, date), reverse=reverse)
+        #      return self.teams.sort(key=lambda x: x.get_stat(stat,date), reverse=reverse) # Inplace sort
+        # #return sorted(self.teams, key=lambda x: x.get_stat(stat))
     def get_team_stats_to_date(self, date:Date)->List[GameStats]:
         return [team.total_to_date(date) for team in self.teams]
     def get_team_stats(self)->List[GameStats]:
@@ -228,5 +244,3 @@ class TeamList:
     @property
     def team_cities(self)->List[str]:
         return [team.city for team in self.teams]
-
-

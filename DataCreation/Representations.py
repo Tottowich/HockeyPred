@@ -9,6 +9,7 @@ import sys
 import re
 import datetime as dt
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 # Custom name for typing
 from typing import List, Dict, Tuple, Union, Optional,Any
 # Create custom typing given a string
@@ -294,12 +295,18 @@ class Stats:
     def __radd__(self, other:"Stats"): # This is called when the other object is not a Stats object
         return self + other
     def plot(self, ax: plt.Axes=None, title: str=None, xlabel: str=None, ylabel: str=None, **kwargs):
+        keys = self.stats.keys()
+        values = self.stats.values()
         fig = None
         if ax is None:
             fig, ax = plt.subplots()
-        ax.bar(self.stats.keys(), self.stats.values(), **kwargs)
+        ax.bar(keys, values, **kwargs)
         # The keys should be on the x-axis in an angle
-        ax.xaxis.set_ticklabels(self.stats.keys(), rotation=45, ha="right")
+        # ax.xaxis.set_ticklabels(keys, rotation=45, ha="right")
+        ticks_loc = ax.get_xticks()
+        ax.xaxis.set_major_locator(mticker.FixedLocator(ticks_loc))
+        # ax.set_yticklabels([label_format.format(x) for x in ticks_loc])
+        ax.set_xticklabels(keys, rotation=45, ha="right")
         # Make the window fit the labels
         if title is not None:
             ax.set_title(title)
@@ -502,7 +509,7 @@ class TeamStats:
         return self.last_n_home(n).average()
     def last_n_away_average(self, n:int):
         return self.last_n_away(n).average()
-    def plot(self, metric="total",date:Date=None, title:str=None, xlabel:str=None, ylabel:str=None, **kwargs):
+    def plot(self, metric="total",date:Date=None, title:str=None, xlabel:str=None, ylabel:str=None, **kwargs)->Tuple[plt.Figure, plt.Axes]:
         assert metric is None or metric.lower() in ["total","average"], "Metric must be either 'Total' or 'Average'"
         calenders = [self.stats_calendar, self.home_stats_calendar, self.away_stats_calendar]
         # Set first letter of metric to uppercase rest to lowercase
@@ -510,8 +517,8 @@ class TeamStats:
         metric = metric[0].upper() + metric[1:].lower()
         labels = [metric, metric+" Home", metric+" Away"]
         total = metric == "Total"
-        # Create the plot
-        fig, axs = plt.subplots(1,3)
+        # Create the plot with 3 subplots and figure size 15x5
+        fig, axs = plt.subplots(1,3,figsize=(15,5))
         for calender,ax,label in zip(calenders,axs,labels):
             if date is None:
                 title = f"{self.team.name} {label} Stats."
@@ -528,7 +535,7 @@ class TeamStats:
         fig.tight_layout()
         # Set windown size:
         fig.set_size_inches(14.5, 8.5)
-        plt.show()
+        return [fig,axs]
     def clear(self):
         self.home_stats_calendar.clear()
         self.away_stats_calendar.clear()

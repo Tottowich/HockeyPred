@@ -1,5 +1,6 @@
 from testingfunctions import *
 from DataCreation.Teams import *
+from DataCreation.Season import *
 def test_team_list(N:int=30):
     tl = team_list(N)
     # for team in tl:
@@ -33,7 +34,30 @@ def test_team_list(N:int=30):
     print(f"\n\n\n{'-'*20}TOTAL{'-'*20}")
     print(tl[-2].total())
     print(tl[-2].total())
+    tl[0].plot()
+
+def test_confusion_matrix(N:int=30):
+    tl = team_list(N)
+    cm = ConfusionMatrix(tl)
+    # for team in tl:
+    #     print(f"\n{team.name}: {team.total()}")
+    match_ups = all_match_ups(tl)
+    print(f"\n{len(match_ups)} match ups")
+    date = Date(2019,1,1)
+    for i in range(10): # 20 matche ups.
+        for home,away in match_ups:
+            # print(f"{away.name} @ {home.name}")
+            game = simulate_game(home,away,date)
+            # Add the game to the teams
+            home_win = home.add_game(game)
+            away.add_game(game)
+            date = date.next_date()
+            team_win = home if home_win else away
+            team_loss = away if home_win else home
+            cm.add_game(team_win,team_loss)
+    cm.plot()
+
 def main():
-    test_team_list()
+    test_confusion_matrix()
 if __name__ == '__main__':
     main()
