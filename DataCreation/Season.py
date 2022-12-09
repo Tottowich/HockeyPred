@@ -78,7 +78,10 @@ class Season:
     season_id:SeasonID
     team_list:TeamList
     def __init__(self, season_id:SeasonID, team_list:TeamList) -> None:
-        self.season_id = season_id
-        self.team_list = team_list
+        self.season_id:SeasonID = season_id
+        self.team_list:TeamList = team_list
         self.confusion_matrix = ConfusionMatrix(team_list)
-        # TODO: Finish this
+        self.games:List[Date,Stats,Stats,GameResult] = []
+    def add_game(self, date:Date, game:Game)->None:
+        self.games.append((date, game))
+        self.confusion_matrix.add_game(game.winner, game.loser)

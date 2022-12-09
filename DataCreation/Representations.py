@@ -320,7 +320,6 @@ class Stats:
         return ax
         
 
-        
 
 
 
@@ -332,12 +331,15 @@ class GameStats(Stats):
     def __init__(self, team:TeamID,date:Date,stats:Dict[str, Union[int, float]],home:bool):
         super().__init__(stats, date,home)
         assert issubclass(type(team), TeamID), f"Team must be a TeamID object, got {type(team)}"
-        self.team = team
+        self._team = team
         #self.stats = stats
         assert "Goals" in self.stats.keys(), "Score must be in the stats"
         #self.home = home
+    @property
+    def team(self) -> TeamID:
+        return self._team
     def __str__(self) -> str:
-        return f"\'{self.team.name}\' had the following stats on {self.date}:{dict_to_print_string(self.stats,8)}"
+        return f"\'{self._team.name}\' had the following stats on {self.date}:{dict_to_print_string(self.stats,8)}"
 @dataclass
 class StatList:
     _stats: OrderedDict[Date,Stats]
@@ -422,7 +424,7 @@ class TeamStats:
         self.stats_calendar = StatList()
     def add_stats(self, stats:GameStats):
         assert isinstance(stats, GameStats), "Stats must be of type GameStats"
-        assert stats.team == self.team, "Stats must be for the same team"
+        assert stats._team == self.team, "Stats must be for the same team"
         assert stats.date not in self.stats_calendar.added_dates, "Stats for this date already exist"
         if stats.home:
             self.home_stats_calendar.append(stats)
@@ -564,7 +566,41 @@ class TeamStats:
         self.away_stats_calendar.clear()
         self.stats_calendar.clear()
 
-        
+
+
+
+# Result class, win = 1, loss = -1, draw = 0
+class GameResult:
+    def __init__(self, home_stats:GameStats, away_stats:GameStats):
+        self.home_stats = home_stats
+        self.away_stats = away_stats
+        self.home_score = home_stats.stats["Goals"]
+        self.away_score = away_stats.stats["Goals"]
+        self.home_team:TeamID = home_stats.team
+        self.away_team:TeamID = away_stats.team
+        self.result = self.away_win()*-1 + self.home_win() # 1 if home win, -1 if away win, 0 if draw
+    def home_win(self):
+        return self.home_score > self.away_score
+    def away_win(self):
+        return self.away_score > self.home_score
+    def tie(self):
+        return self.home_score == self.away_score
+    @property
+    def winner(self):
+        if self.home_win():
+            return self.home_team
+        elif self.away_win():
+            return self.away_team
+        else:
+            return None
+    @property
+    def loser(self):
+        if self.home_win():
+            return self.away_team
+        elif self.away_win():
+            return self.home_team
+        else:
+            return None
         
 
 @dataclass # This class is used to represent a Game
@@ -575,6 +611,7 @@ class Game:
     date: Date
     def __init__(self, season:SeasonID,home_stats:GameStats,away_stats:GameStats):
         self.season = season
+        self.result = GameResult(home_stats, away_stats)
         self.home_stats = home_stats
         assert home_stats.home, "Home stats must be for home team"
         self.away_stats = away_stats
@@ -582,7 +619,7 @@ class Game:
         self.date = home_stats.date
         self.home_score = home_stats.stats["Goals"]
         self.away_score = away_stats.stats["Goals"]
-    def stat_by_team(self, team:Team):
+    def stat_by_team(self, team:"Team"):
         if self.home_team == team:
             return self.home_stats
         elif self.away_team == team:
@@ -596,11 +633,27 @@ class Game:
     def tie(self):
         return self.home_score == self.away_score
     @property
+    def winner(self):
+        if self.home_win():
+            return self.home_team
+        elif self.away_win():
+            return self.away_team
+        else:
+            return None
+    @property
+    def loser(self):
+        if self.home_win():
+            return self.away_team
+        elif self.away_win():
+            return self.home_team
+        else:
+            return None
+    @property
     def home_team_id(self):
-        return self.home_stats.team
+        return self.home_stats._team
     @property
     def away_team_id(self):
-        return self.away_stats.team
+        return self.away_stats._team
     @property
     def teams(self):
         return [self.home_team_id, self.away_team_id]
