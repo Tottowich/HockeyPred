@@ -7,7 +7,7 @@ import sys
 import re
 import datetime as dt
 import matplotlib.pyplot as plt
-from .Representations import Record, SeasonID, TeamID,Game, GameStats,TeamStats,Date,Stats,DateList
+from .Representations import Record, SeasonID, TeamID,Game, GameStats,TeamStats,Date,Stats,DateList,GameResult
 from .Teams import Team, TeamList
 
 @dataclass
@@ -28,7 +28,9 @@ class ConfusionMatrix:
             team_win = team_win.id
         if isinstance(team_loss, Team):
             team_loss = team_loss.id
-        self.matrix[self.team_to_index[team_win], self.team_to_index[team_loss]] += 1
+        if team_win is not None:
+            self.matrix[self.team_to_index[team_win], self.team_to_index[team_loss]] += 1 if team_win != team_loss else 0
+            
     def get_entry(self, team1:TeamID, team2:TeamID,percentage:bool=False)->Union[Tuple[int,int],Tuple[float,float]]:
         won = self.matrix[self.team_to_index[team1], self.team_to_index[team2]]
         lost = self.matrix[self.team_to_index[team2], self.team_to_index[team1]]
@@ -39,7 +41,10 @@ class ConfusionMatrix:
             return won, lost
     @property
     def win_percentages(self)->np.ndarray:
-        return self.matrix/(self.matrix+self.matrix.T)
+        total = (self.matrix+self.matrix.T)
+        total[total==0] = 1 # Avoid division by zero
+        # Devide elementwise
+        return self.matrix/total
     def __getitem__(self, teams:Tuple[TeamID,TeamID])->int:
         return self.get_entry(*teams)
     def __repr__(self):
@@ -77,11 +82,36 @@ class ConfusionMatrix:
 class Season:
     season_id:SeasonID
     team_list:TeamList
-    def __init__(self, season_id:SeasonID, team_list:TeamList) -> None:
-        self.season_id:SeasonID = season_id
+    games:List[Tuple[Date, Stats, Stats, GameResult]]
+    def __init__(self, team_list:TeamList,season_id:SeasonID=None) -> None:
+        # self.season_id:SeasonID = season_id if season_id is not None else 
+        if season_id is not None:
+            assert season_id == team_list.season_id, f"SeasonID and TeamList's SeasonID must be the same, but got as argument - SeasonID: {season_id}, TeamList's SeasonID: {team_list.season_id}."
+        self.season_id = team_list.season_id
         self.team_list:TeamList = team_list
         self.confusion_matrix = ConfusionMatrix(team_list)
-        self.games:List[Date,Stats,Stats,GameResult] = []
-    def add_game(self, date:Date, game:Game)->None:
-        self.games.append((date, game))
-        self.confusion_matrix.add_game(game.winner, game.loser)
+        # The games list should contain the date, stats leading up to the game for both teams, and the result of the game.
+        self.games:List[Tuple[Date, Stats, Stats, GameResult]] = [] 
+    def add_game(self, game:Game)->GameResult:
+        # Retrieve the stats of the teams at the date of the game.
+        # Get the result of the game.
+        # Add the game to the games list.
+        # Add the game to the confusion matrix.
+        # Add the game to the team's records.
+        date = game.date # The date of the game
+        home_team, away_team = game.teams
+        home_team_stats = self.team_list[home_team].total_to_date(date)
+        away_team_stats = self.team_list[away_team].total_to_date(date)
+
+        result = game.result
+        # print(f"Adding game: {game} - score {result.one_hot} to {self.season_id}.")
+        self.games.append((date, home_team_stats, away_team_stats, result))
+        self.confusion_matrix.add_game(result.winner, result.loser)
+        # Add the game to the team's records.
+        self.team_list[home_team].add_game(game)
+        self.team_list[away_team].add_game(game)
+        return result
+    def print_games(self)->None:
+        # Print the games in the season.
+        for game in self.games:
+            print(game)

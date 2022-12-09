@@ -13,7 +13,7 @@ import sys
 import re
 import datetime as dt
 import matplotlib.pyplot as plt
-from .Representations import Record, SeasonID, TeamID,Game, GameStats,TeamStats,Date,Stats,DateList
+from .Representations import Record, SeasonID, TeamID,Game, GameStats,TeamStats,Date,Stats,DateList,GameResult
 """
 Team specific features:
 * Powerplay precentage up to that point in the season (PP%)
@@ -62,7 +62,7 @@ class Team:
     def __init__(self, team_id:TeamID, season_id:SeasonID):
         self.team_id = team_id
         self.categories = None
-        self.season_id = season_id
+        self.season_id = season_id 
         self.record = Record(season_id, self.team_id)
         self.team_stats = TeamStats(self.team_id)
         self.played_dates = DateList()
@@ -119,7 +119,7 @@ class Team:
     def get_stat(self, stat:str, date:Date=None)->Stats:
         """ Returns the stat of the team up to that date."""
         return self.team_stats.get_stat(stat, date)
-    def add_game(self, game:Game)->int:
+    def add_game(self, game:Game)->GameResult:
         """ Adds a game to the team. Returns the result of the game, 1 for win, 0 for tie and -1 for loss."""
         self.played_dates.add_date(game.date)
         assert self.id in game.teams, f"{self.id} is not in {game.teams}"
@@ -172,12 +172,15 @@ class Team:
         return fig,axs
 class TeamList:
     TL = TypeVar("TL", bound="TeamList")
-    def __init__(self,teams:Optional[List[Team]]=None) -> None:
+    def __init__(self,teams:Optional[List[Team]]=None,season_id:SeasonID=None) -> None:
         self.teams = teams if teams is not None else []
         self.team_dict = OrderedDict()
+        self.season_id = season_id if season_id is not None else SeasonID(number_of_teams=len(self.teams))
     def add_team(self, team:Team):
-        self.teams.append(team)
-        self.team_dict[team.id] = team
+        if team not in self.teams:
+            self.teams.append(team)
+            self.team_dict[team.id] = team
+            self.season_id.number_of_teams = len(self.teams)
     def sort_by_id(self,in_place:bool=False)->Union[List[Team],None]:
         # return self.teams.sort(key=lambda x: x.id) # Inplace sort
         if in_place:

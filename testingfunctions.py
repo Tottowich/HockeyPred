@@ -50,15 +50,22 @@ def rand_teams(N:int=3):
     Vancouver = Team(van_id, season_id)
     return Pitsburgh, New_York, Vancouver, season_id
 def team_list(N:int=30):
-    season_id = SeasonID(2019,3)
+    # season_id = SeasonID(2019,3)
+    season_id = None
     teams = []
+    tl = TeamList()
     for i in range(N):
         team_id = TeamID(TEAM_NAMES[i])
-        teams.append(Team(team_id,season_id))
-    return TeamList(teams)
+        # teams.append(Team(team_id,season_id))
+        tl.add_team(Team(team_id,season_id))
+    return tl
+    # return TeamList(teams)
 def all_match_ups(team_list:Union[TeamList,List[Team]]):
     team_list = team_list.teams if isinstance(team_list,TeamList) else team_list
-    return list(permutations(team_list,2))
+    l = list(permutations(team_list,2))
+    # Shuffle the list
+    random.shuffle(l)
+    return l
 # Generate dictionaries like the above for each game:
 def rand_team_stats():
     rnd_game = rnd_game_stats_home = {

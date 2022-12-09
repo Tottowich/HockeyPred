@@ -25,17 +25,14 @@ def test_team_list(N:int=30):
     print(team_stats.home_stats_calendar.added_dates.get_closest_date(Date(2019,3,3),direction='below'))
     print(len(team_stats.away_stats_calendar.added_dates))
     print(team_stats.get_game_stats(team_stats.away_stats_calendar.added_dates))
-    print(f"\n\n\n{'-'*20}HOME{'-'*20}")
-    print(tl[-2].home_total())
-    print(tl[-2].home_total())
-    print(f"\n\n\n{'-'*20}AWAY{'-'*20}")
-    print(tl[-2].away_total())
-    print(tl[-2].away_total())
-    print(f"\n\n\n{'-'*20}TOTAL{'-'*20}")
-    print(tl[-2].total())
-    print(tl[-2].total())
-    tl[0].plot()
-
+    # print(f"\n\n\n{'-'*20}HOME{'-'*20}")
+    # print(tl[-2].home_total())
+    # print(f"\n\n\n{'-'*20}AWAY{'-'*20}")
+    # print(tl[-2].away_total())
+    # print(f"\n\n\n{'-'*20}TOTAL{'-'*20}")
+    print(tl[0].total())
+    # tl[0].plot()
+    print(tl.season_id)
 def test_confusion_matrix(N:int=30):
     tl = team_list(N)
     cm = ConfusionMatrix(tl)
@@ -56,8 +53,24 @@ def test_confusion_matrix(N:int=30):
             team_loss = away if home_win else home
             cm.add_game(team_win,team_loss)
     cm.plot()
+def test_season(N:int=30):
+    tl = team_list(N)
+    season = Season(tl)
+    match_ups = all_match_ups(tl)
+    game_date = season.season_id.start_date
+    if game_date is None:
+        game_date = Date(2019,1,1)
+    nr_seasons = 1
+    for i in range(nr_seasons):
+        for home,away in match_ups:
+            game = simulate_game(home,away,game_date)
+            game_date = game_date.next_date()
+            r = season.add_game(game)
+            print(r)
+
+
 
 def main():
-    test_confusion_matrix()
+    test_season()
 if __name__ == '__main__':
     main()

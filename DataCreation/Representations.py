@@ -4,6 +4,7 @@
 from dataclasses import dataclass
 import numpy as np
 import pandas as pd
+import uuid
 import os
 import sys
 import re
@@ -121,14 +122,30 @@ class DateList:
 @dataclass
 class SeasonID:
     number_of_teams: int # Number of teams in the season
-    number_of_games: int # Number of games in the season for each team
-    def __init__(self, season_id:Union[str,int], number_of_teams:int, number_of_games:int=None):
+    def __init__(self, season_id:Union[str,int]=None,start_date:Date=None, number_of_teams:int=None):
         self.season_id = season_id
-        self.number_of_teams = number_of_teams
-        self.number_of_games = number_of_games
-        if self.number_of_games is None:
-            # Calculate total number of games
-            self.number_of_games = int(self.number_of_teams * (self.number_of_teams - 1) / 2)
+        self.start_date = start_date
+        self._number_of_teams = number_of_teams
+        self._gen_id()
+    def _gen_id(self):
+        # Generate a random id for the season if one is not provided
+        if self.season_id is None:
+            self.season_id = str(uuid.uuid4())
+    # Make number of teams a property 
+    @property
+    def number_of_teams(self):
+        return self._number_of_teams
+    @number_of_teams.setter
+    def number_of_teams(self, number_of_teams):
+        self._number_of_teams = number_of_teams
+    @number_of_teams.deleter
+    def number_of_teams(self):
+        del self._number_of_teams
+
+
+    @property
+    def number_of_games(self):
+        return int(self.number_of_teams * (self.number_of_teams - 1))
     def __str__(self):
         return f"Season {self.season_id} with {self.number_of_teams} teams and {self.number_of_games} games."
     def id(self):
@@ -318,7 +335,6 @@ class Stats:
             fig.tight_layout()
             plt.show()
         return ax
-        
 
 
 
@@ -579,6 +595,7 @@ class GameResult:
         self.home_team:TeamID = home_stats.team
         self.away_team:TeamID = away_stats.team
         self.result = self.away_win()*-1 + self.home_win() # 1 if home win, -1 if away win, 0 if draw
+        self.one_hot = np.array([self.result==1, self.result==0, self.result==-1])  # [1,0,0] if home win, [0,1,0] if draw, [0,0,1] if away win
     def home_win(self):
         return self.home_score > self.away_score
     def away_win(self):
@@ -601,7 +618,8 @@ class GameResult:
             return self.home_team
         else:
             return None
-        
+    def __str__(self) -> str:
+        return f"{self.home_team.name} ({self.home_score}) - ({self.away_score}) {self.away_team.name}"
 
 @dataclass # This class is used to represent a Game
 class Game:
@@ -611,7 +629,7 @@ class Game:
     date: Date
     def __init__(self, season:SeasonID,home_stats:GameStats,away_stats:GameStats):
         self.season = season
-        self.result = GameResult(home_stats, away_stats)
+        self._result = GameResult(home_stats, away_stats)
         self.home_stats = home_stats
         assert home_stats.home, "Home stats must be for home team"
         self.away_stats = away_stats
@@ -619,7 +637,7 @@ class Game:
         self.date = home_stats.date
         self.home_score = home_stats.stats["Goals"]
         self.away_score = away_stats.stats["Goals"]
-    def stat_by_team(self, team:"Team"):
+    def stat_by_team(self, team:TeamID):
         if self.home_team == team:
             return self.home_stats
         elif self.away_team == team:
@@ -627,27 +645,15 @@ class Game:
         else:
             raise ValueError(f"Team {team.name} is not in this game.")
     def home_win(self):
-        return self.home_score > self.away_score
+        return self._result.home_win()
     def away_win(self):
-        return self.away_score > self.home_score
+        return self._result.away_win()
     def tie(self):
-        return self.home_score == self.away_score
+        return self._result.tie()
+    
     @property
-    def winner(self):
-        if self.home_win():
-            return self.home_team
-        elif self.away_win():
-            return self.away_team
-        else:
-            return None
-    @property
-    def loser(self):
-        if self.home_win():
-            return self.away_team
-        elif self.away_win():
-            return self.home_team
-        else:
-            return None
+    def result(self)->GameResult:
+        return self._result
     @property
     def home_team_id(self):
         return self.home_stats._team
