@@ -53,22 +53,11 @@ def test_confusion_matrix(N:int=30):
             team_loss = away if home_win else home
             cm.add_game(team_win,team_loss)
     cm.plot()
-def test_season(N:int=30):
-    tl = team_list(N)
-    season = Season(tl)
-    match_ups = all_match_ups(tl)
-    game_date = season.season_id.start_date
-    if game_date is None:
-        game_date = Date(2019,1,1)
-    nr_seasons = 1
-    for i in range(nr_seasons):
-        for home,away in match_ups:
-            game = simulate_game(home,away,game_date)
-            game_date = game_date.next_date()
-            r = season.add_game(game)
-            print(r)
-
-
+def test_season(N:int=30,reps:int=10):
+    season = simulate_season(N_teams=N,reps=reps)
+    games = season.games
+    cm = season.confusion_matrix
+    cm.plot()
 
 def main():
     test_season()

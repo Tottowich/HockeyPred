@@ -1,6 +1,7 @@
 
 from tqdm import tqdm
-from DataCreation.Teams import TeamList, Team
+from DataCreation.Teams import *
+from DataCreation.Season import *
 from DataCreation.Representations import SeasonID,TeamID
 from DataCreation.Representations import Record,Game,Date
 from DataCreation.Representations import Record, GameStats,TeamStats
@@ -196,6 +197,19 @@ def rand_games_rand_date(start_date:Date=None,N:int=1000):
             date = rand_date()
         added_dates.append(date)
     return Pitsburgh, Vancouver
-    
+def simulate_season(N_teams:int=30,reps:int=10,average:bool=True,away:bool=False,home:bool=False,total:bool=False):
+    tl = team_list(N_teams)
+    season = Season(tl,average=average,away=away,home=home,total=total)
+    game_date = Date(2019,1,1)
+    match_ups = all_match_ups(tl)
+    # Generate games with progress bar
+    pbar = tqdm(total=reps*len(match_ups))
+    for i in range(reps):
+        for home,away in match_ups:
+            pbar.update(1)
+            game = simulate_game(home,away,game_date)
+            game_date = game_date.next_date()
+            r = season.add_game(game)
+    return season
 def rand_league():
     pass

@@ -83,7 +83,14 @@ class Season:
     season_id:SeasonID
     team_list:TeamList
     games:List[Tuple[Date, Stats, Stats, GameResult]]
-    def __init__(self, team_list:TeamList,season_id:SeasonID=None) -> None:
+    def __init__(self, 
+                team_list:TeamList,
+                season_id:SeasonID=None,
+                average:bool=True,
+                home:bool=False,
+                away:bool=False,
+                total:bool=False,
+                ) -> None:
         # self.season_id:SeasonID = season_id if season_id is not None else 
         if season_id is not None:
             assert season_id == team_list.season_id, f"SeasonID and TeamList's SeasonID must be the same, but got as argument - SeasonID: {season_id}, TeamList's SeasonID: {team_list.season_id}."
@@ -91,21 +98,37 @@ class Season:
         self.team_list:TeamList = team_list
         self.confusion_matrix = ConfusionMatrix(team_list)
         # The games list should contain the date, stats leading up to the game for both teams, and the result of the game.
-        self.games:List[Tuple[Date, Stats, Stats, GameResult]] = [] 
-    def add_game(self, game:Game)->GameResult:
+        self.games:List[Tuple[Date, List[Stats],List[Stats], GameResult]] = [] 
+        self.average:bool = average
+        self.home:bool = home
+        self.away:bool = away
+        self.total:bool = total
+    def add_game(self, game:Game,date:Date=None,stat:str="Total")->GameResult:
         # Retrieve the stats of the teams at the date of the game.
         # Get the result of the game.
         # Add the game to the games list.
         # Add the game to the confusion matrix.
         # Add the game to the team's records.
-        date = game.date # The date of the game
+        date = game.date if date is None else date
         home_team, away_team = game.teams
-        home_team_stats = self.team_list[home_team].total_to_date(date)
-        away_team_stats = self.team_list[away_team].total_to_date(date)
-
+        stats_home = []
+        stats_away = []
+        if self.average:
+            stats_home.append(self.team_list[home_team].average_to_date(date))
+            stats_away.append(self.team_list[away_team].average_to_date(date))
+        if self.home:
+            stats_home.append(self.team_list[home_team].home_total_to_date(date)) 
+            stats_home.append(self.team_list[away_team].home_total_to_date(date))
+        if self.away:
+            stats_away.append(self.team_list[away_team].away_total_to_date(date))
+            stats_away.append(self.team_list[home_team].away_total_to_date(date))
+        if self.total:
+            stats_home.append(self.team_list[home_team].total_to_date(date))
+            stats_away.append(self.team_list[away_team].total_to_date(date))
+            
         result = game.result
         # print(f"Adding game: {game} - score {result.one_hot} to {self.season_id}.")
-        self.games.append((date, home_team_stats, away_team_stats, result))
+        self.games.append((date, stats_home, stats_away, result))
         self.confusion_matrix.add_game(result.winner, result.loser)
         # Add the game to the team's records.
         self.team_list[home_team].add_game(game)
@@ -115,3 +138,7 @@ class Season:
         # Print the games in the season.
         for game in self.games:
             print(game)
+    def sort_games(self)->None:
+        # Sort the games in the season.
+        self.games.sort(key=lambda x: x[0]) # Sort by date
+        return self.games

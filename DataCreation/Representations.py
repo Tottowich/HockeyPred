@@ -29,7 +29,7 @@ class Date:
         self.month = month
         self.day = day
         self.date = dt.datetime(year, month, day)
-    def next_date(self):
+    def next_date(self)->'Date':
         # See if the next day is valid and return it
         if self.month in [1, 3, 5, 7, 8, 10]:
             if self.day == 31:
@@ -408,7 +408,10 @@ class StatList:
         #         counter += 1
         #         cumulative_stats += stats
         cumulative = [stats for date, stats in self if final_date is None or date <= final_date]
-        return sum(cumulative), len(cumulative)
+        if len(cumulative):
+            return sum(cumulative), len(cumulative)
+        else:
+            return Stats({}, final_date, True), 1
         #return cumulative_stats, counter
     def total(self)->Stats:
         return self.total_to_date()[0]
@@ -416,6 +419,7 @@ class StatList:
         return self.total() / len(self)
     def average_to_date(self, final_date:Date=None)->Stats:
         total, counter = self.total_to_date(final_date)
+        counter = max(counter, 1)
         return total / counter
     def last_n(self, n:int):
         return StatList(list(self._stats.values())[-n:])
