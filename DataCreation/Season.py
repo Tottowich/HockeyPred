@@ -82,7 +82,7 @@ class ConfusionMatrix:
 class Season:
     season_id:SeasonID
     team_list:TeamList
-    games:List[Tuple[Date, Stats, Stats, GameResult]]
+    games:List[Tuple[Date, List[Stats],Record, List[Stats],Record, GameResult]]
     def __init__(self, 
                 team_list:TeamList,
                 season_id:SeasonID=None,
@@ -90,6 +90,7 @@ class Season:
                 home:bool=False,
                 away:bool=False,
                 total:bool=False,
+                last_n:int=None,
                 ) -> None:
         # self.season_id:SeasonID = season_id if season_id is not None else 
         if season_id is not None:
@@ -98,47 +99,216 @@ class Season:
         self.team_list:TeamList = team_list
         self.confusion_matrix = ConfusionMatrix(team_list)
         # The games list should contain the date, stats leading up to the game for both teams, and the result of the game.
-        self.games:List[Tuple[Date, List[Stats],List[Stats], GameResult]] = [] 
+        self.games = [] 
         self.average:bool = average
         self.home:bool = home
         self.away:bool = away
         self.total:bool = total
-    def add_game(self, game:Game,date:Date=None,stat:str="Total")->GameResult:
+        self.last_n:int = last_n
+        self._init = True   
+    def add_game(self, game:Game,date:Date=None)->GameResult:
         # Retrieve the stats of the teams at the date of the game.
         # Get the result of the game.
         # Add the game to the games list.
         # Add the game to the confusion matrix.
         # Add the game to the team's records.
         date = game.date if date is None else date
-        home_team, away_team = game.teams
+        home_team_id, away_team_id = game.teams
         stats_home = []
         stats_away = []
+        home_team = self.team_list[home_team_id]
+        away_team = self.team_list[away_team_id]
+        home_prev_date = home_team.played_dates.get_closest_date(date)
+        away_prev_date = away_team.played_dates.get_closest_date(date)
+        record_home = home_team.record.record_by_date(home_prev_date)
+        record_away = away_team.record.record_by_date(away_prev_date)
+        if self.last_n:
+            # Get all the dates of the last n games
+            dates_home = home_team.played_dates.get_n_closest_dates(date, self.last_n)
+            dates_home_home = home_team.played_dates_home.get_n_closest_dates(date, self.last_n)
+            dates_home_away = home_team.played_dates_home.get_n_closest_dates(date, self.last_n)
+            # The same for the away team
+            dates_away_home = away_team.played_dates_away.get_n_closest_dates(date, self.last_n)
+            dates_away_away = away_team.played_dates_away.get_n_closest_dates(date, self.last_n)
+            dates_away = away_team.played_dates.get_n_closest_dates(date, self.last_n) 
         if self.average:
-            stats_home.append(self.team_list[home_team].average_to_date(date))
-            stats_away.append(self.team_list[away_team].average_to_date(date))
+            stats_home.append(home_team.average_to_date(date))
+            stats_away.append(away_team.average_to_date(date))
+            if self.last_n:
+                stats_home.append(home_team.team_stats.dates_to_statlist(dates_home).average())
+                stats_away.append(away_team.team_stats.dates_to_statlist(dates_away).average())
         if self.home:
-            stats_home.append(self.team_list[home_team].home_total_to_date(date)) 
-            stats_home.append(self.team_list[away_team].home_total_to_date(date))
+            stats_home.append(home_team.home_average_to_date(date)) 
+            stats_away.append(away_team.home_average_to_date(date))
+            if self.last_n: # Find the last n games played at home
+                stats_home.append(home_team.team_stats.dates_to_statlist(dates_home_home).average())
+                stats_away.append(away_team.team_stats.dates_to_statlist(dates_away_home).average())
         if self.away:
-            stats_away.append(self.team_list[away_team].away_total_to_date(date))
-            stats_away.append(self.team_list[home_team].away_total_to_date(date))
+            stats_home.append(home_team.home_average_to_date(date))
+            stats_away.append(away_team.away_average_to_date(date))
+            if self.last_n: # Find the last n games played away
+                stats_home.append(home_team.team_stats.dates_to_statlist(dates_home_away).average())
+                stats_away.append(away_team.team_stats.dates_to_statlist(dates_away_away).average())
         if self.total:
-            stats_home.append(self.team_list[home_team].total_to_date(date))
-            stats_away.append(self.team_list[away_team].total_to_date(date))
-            
+            stats_home.append(home_team.total_to_date(date))
+            stats_away.append(away_team.total_to_date(date))
+            if self.last_n:
+                stats_home.append(home_team.team_stats.dates_to_statlist(dates_home).total())
+                stats_away.append(away_team.team_stats.dates_to_statlist(dates_away).total())
         result = game.result
         # print(f"Adding game: {game} - score {result.one_hot} to {self.season_id}.")
-        self.games.append((date, stats_home, stats_away, result))
+        self.games.append((date, stats_home,record_home, stats_away, record_away, result))
         self.confusion_matrix.add_game(result.winner, result.loser)
         # Add the game to the team's records.
-        self.team_list[home_team].add_game(game)
-        self.team_list[away_team].add_game(game)
+        self.team_list[home_team_id].add_game(game)
+        self.team_list[away_team_id].add_game(game)
         return result
-    def print_games(self)->None:
+    def print_games(self,n:int=None)->None:
         # Print the games in the season.
-        for game in self.games:
-            print(game)
+        index_to_stat_type = self.index_desc
+        print(index_to_stat_type)
+        for k,game in enumerate(self.games):
+            # Print the contents of the game.
+            date, stats_home, record_home, stats_away, record_away, result = game
+            print(f"\n\nGame date: {date}")
+            print(f"Home Team record before: {record_home}")
+            print(f"Away Team record before: {record_away}")
+            print(f"Result: {result}")
+            print(f"Number of stats: {len(stats_home)}")
+            print(f"Number of stats: {len(stats_away)}")
+            for i,stat in enumerate(stats_home):
+                print(f"Home Team: \'{index_to_stat_type[i]}\': {stat}")
+            for i,stat in enumerate(stats_away):
+                print(f"Away Team: \'{index_to_stat_type[i]}\': {stat}")
+            if n and k > n:
+                break
+    def print_single_game(self,index)->None:
+        # Print a single game.
+        index_to_stat_type = self.index_desc
+        date, stats_home, record_home, stats_away, record_away, result = self.games[index]
+        print(f"\n\nGame date: {date}")
+        print(f"Home Team record before: {record_home}")
+        print(f"Away Team record before: {record_away}")
+        print(f"Result: {result}")
+        for i,stat in enumerate(stats_home):
+            print(f"Home Team: \'{index_to_stat_type[i]}\': {stat}")
+        for i,stat in enumerate(stats_away):
+            print(f"Away Team: \'{index_to_stat_type[i]}\': {stat}")
+        return date, stats_home, record_home, stats_away, record_away, result
+    @property
+    def index_desc(self)->list[str]:
+        index_to_stat_type = []
+        if self.average:
+            index_to_stat_type.append("TD")
+        if self.last_n:
+            index_to_stat_type.append(f"Last{self.last_n}")
+        if self.home:
+            index_to_stat_type.append("H")
+            if self.last_n:
+                index_to_stat_type.append(f"H-Last{self.last_n}")
+        if self.away:
+            index_to_stat_type.append("A")
+            if self.last_n:
+                index_to_stat_type.append(f"A-Last{self.last_n}")
+        if self.total:
+            index_to_stat_type.append("Tot")
+            if self.last_n:
+                index_to_stat_type.append(f"Tot-Last{self.last_n}")
+        return index_to_stat_type
+
     def sort_games(self)->None:
         # Sort the games in the season.
         self.games.sort(key=lambda x: x[0]) # Sort by date
         return self.games
+from tqdm import tqdm
+class SeasonExporter:
+    """
+    Export a season to a file.
+    The export file will be a csv of the following structure:
+    # Start File
+    Row 0 - Col 0: Game ID, Col 1 - Home Team ID, Col 2: Away Team ID, Col 3 Date
+    Row 1 - Col 0: Stat key, Col 1 - Home Team Stat, Col 2 - Away Team Stat
+    Row 2 - Col 0: Stat key, Col 1 - Home Team Result, Col 2 - Away Team Stat
+    ...
+    Row n - Col 0: Stat key, Col 1 - Home Team Stat, Col 2 - Away Team Stat # n is the number of stats.
+    Row n+1 - Col 0: Result key, Col 1 - 1 if home team won, Col 2 - 1 if away team won, Col 3 - 1 if tie.
+    # The next row is the next game.
+    Row n+2 - Col 0: Game ID, Col 1: Date, Col 2 - Home Team ID, Col 3: Away Team ID
+    ...
+    # End File
+    """
+    def __init__(self, season:Season,
+                export_dir:str=None,
+                export_file:str=None,
+                export_format:str="csv",
+                ):
+        self.season = season
+        self.export_dir = export_dir
+        self.export_file = export_file
+        self.export_format = export_format.split(".")[-1]
+        self.export_path = None
+        self._build_export_path()
+        self._game_id = 0
+    def _build_export_path(self)->None:
+        # Build the export path.
+        if not self.export_dir:
+            self.export_dir = os.path.join(os.getcwd(), "exports")
+        if not os.path.exists(self.export_dir):
+            os.makedirs(self.export_dir)
+        if not self.export_file:
+            self.export_file = f"{self.season.season_id}.{self.export_format}"
+        self.export_path = os.path.join(self.export_dir, self.export_file)
+    def export(self)->None:
+        if self.export_format == "csv":
+            self._export_csv()
+        else:
+            raise NotImplementedError(f"Export format {self.export_format} not implemented yet.")
+    def _export_csv(self)->None:
+        # Export the games to a csv file.
+        games = self.season.games
+        index_to_stat_type = self.season.index_desc
+        with open(self.export_path, "w") as f:
+            # Initialize Progression bar:
+            pbar = tqdm(total=len(games),desc="Exporting games!")
+            # Comment out the following line if you don't want the header.
+            f.write("Game ID,Home Team ID,Away Team ID,Date\n")
+            for game in games:
+                pbar.update(1)
+                date, stats_home, record_home, stats_away, record_away, result = game # Extract the game data.
+                home_team_id = result.home_team
+                away_team_id = result.away_team
+                f.write(f"Game_{self._game_id},{home_team_id.name},{away_team_id.name},{date}\n")
+                self._game_id += 1
+                f.write(f"TeamIDHome,{home_team_id.id},{home_team_id.name},\n")
+                for i,stat in enumerate(stats_home):
+                    stat = stat.to_pandas(index_to_stat_type[i])
+                    # Write using the pandas to_csv method.
+                    stat.to_csv(f, mode="a", header=False)
+                    # New line after each stat.
+                    f.write("\n")
+                f.write(f"TeamIDAway,{away_team_id.id},{away_team_id.name},\n")
+                for i,stat in enumerate(stats_away):
+                    stat = stat.to_pandas(index_to_stat_type[i])
+                    # Write using the pandas to_csv method.
+                    stat.to_csv(f, mode="a", header=False)
+                    # New line after each stat.
+                    f.write("\n")
+                # Last row is the result.
+                f.write(f"Result,{result.home_win},{result.away_win},{result.tie}\n\n")
+                # if self._game_id > 10:
+                #     break # Temporarily only write one game.
+                    
+                
+
+
+
+
+
+
+
+
+            
+
+
+
+       

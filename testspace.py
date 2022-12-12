@@ -54,12 +54,26 @@ def test_confusion_matrix(N:int=30):
             cm.add_game(team_win,team_loss)
     cm.plot()
 def test_season(N:int=30,reps:int=10):
-    season = simulate_season(N_teams=N,reps=reps)
+    season = simulate_season(reps=reps,average=True,home=True,away=True,last_n=10)
     games = season.games
     cm = season.confusion_matrix
+    # season.print_games(10)
+    date,home,home_rec,away,away_rec,result = season.print_single_game(-1)
     cm.plot()
-
+def test_season_weird(N:int=30,reps:int=10):
+    season = simulate_season_weird(reps=reps,average=True,home=True,away=True,last_n=10)
+    games = season.games
+    cm = season.confusion_matrix
+    # season.print_games(10)
+    date,home,home_rec,away,away_rec,result = season.print_single_game(-1)
+    cm.plot()
+def test_exporting_season(N:int=30,reps:int=10):
+    season = simulate_season_weird(reps=reps,average=True,home=True,away=True,last_n=10)
+    se = SeasonExporter(season)
+    se.export()
 def main():
-    test_season()
+    # test_season_weird(reps=1)
+    # test_team_list()
+    test_exporting_season(reps=5)
 if __name__ == '__main__':
     main()

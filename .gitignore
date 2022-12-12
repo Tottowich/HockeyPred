@@ -1,3 +1,5 @@
 testspace.ipynb
 venv*/
 *__pycache__/
+*exports/
+*.csv

@@ -6,6 +6,7 @@ from DataCreation.Representations import SeasonID,TeamID
 from DataCreation.Representations import Record,Game,Date
 from DataCreation.Representations import Record, GameStats,TeamStats
 from typing import List, Union
+import random
 from itertools import permutations
 # 30 NHL team names
 TEAM_NAMES = [
@@ -69,7 +70,7 @@ def all_match_ups(team_list:Union[TeamList,List[Team]]):
     return l
 # Generate dictionaries like the above for each game:
 def rand_team_stats():
-    rnd_game = rnd_game_stats_home = {
+    rnd_game = {
         "Goals": random.randint(0, 5),
         "Goals Against": random.randint(0, 5),
         "Shots": random.randint(0, 50),
@@ -88,11 +89,37 @@ def rand_team_stats():
         "Penalty Minutes Drawn": random.randint(0, 20),
     }
     return rnd_game
-import random
+def very_rand_team_stats():
+    team_stats = rand_team_stats()
+    for key in team_stats.keys():
+        # Remove some stats except for goals and goals against
+        u = random.uniform(0, 1)
+        if key not in ["Goals","Goals Against"] and u < 0.2:
+            team_stats[key] = None
+    return team_stats
 def rand_game():
     # Generate random stats for one team and match them with the other team
     rnd_game = rand_team_stats()
     rnd_game_away = rand_team_stats()
+    rnd_game_away["Goals"] = rnd_game["Goals Against"]
+    rnd_game_away["Goals Against"] = rnd_game["Goals"]
+    rnd_game_away["Shots"] = rnd_game["Shots againts"]
+    rnd_game_away["Shots againts"] = rnd_game["Shots"]
+    rnd_game_away["Faceoffs Won"] = rnd_game["Faceoffs Lost"]
+    rnd_game_away["Faceoffs Lost"] = rnd_game["Faceoffs Won"]
+    rnd_game_away["Powerplay Goals"] = rnd_game["Boxplay Goals Against"]
+    rnd_game_away["Powerplay Goals Against"] = rnd_game["Boxplay Goals"]
+    rnd_game_away["Boxplay Goals"] = rnd_game["Powerplay Goals Against"]
+    rnd_game_away["Boxplay Goals Against"] = rnd_game["Powerplay Goals"]
+    rnd_game_away["Powerplay Opportunities"] = rnd_game["Boxplay Opportunities"]
+    rnd_game_away["Boxplay Opportunities"] = rnd_game["Powerplay Opportunities"]
+    rnd_game_away["Penalty Minutes"] = rnd_game["Penalty Minutes Drawn"]
+    rnd_game_away["Penalty Minutes Drawn"] = rnd_game["Penalty Minutes"]
+    return rnd_game, rnd_game_away
+def very_rand_game():
+    # Generate random stats for one team and match them with the other team
+    rnd_game = very_rand_team_stats()
+    rnd_game_away = very_rand_team_stats()
     rnd_game_away["Goals"] = rnd_game["Goals Against"]
     rnd_game_away["Goals Against"] = rnd_game["Goals"]
     rnd_game_away["Shots"] = rnd_game["Shots againts"]
@@ -158,6 +185,12 @@ def simulate_game(home_team:Team, away_team:Team, date:Date=None):
     away_stats = GameStats(away_team.id, date, away_stats, False)
     game = Game(home_team.season_id, home_stats, away_stats)
     return game
+def simulate_weird_game(home_team:Team, away_team:Team, date:Date=None):
+    home_stats, away_stats = very_rand_game()
+    home_stats = GameStats(home_team.id, date, home_stats, True)
+    away_stats = GameStats(away_team.id, date, away_stats, False)
+    game = Game(home_team.season_id, home_stats, away_stats)
+    return game
 def rand_date(year:int=None,month:int=None,day:int=None):
     if year is None:
         year = random.randint(2000, 2020)
@@ -197,9 +230,9 @@ def rand_games_rand_date(start_date:Date=None,N:int=1000):
             date = rand_date()
         added_dates.append(date)
     return Pitsburgh, Vancouver
-def simulate_season(N_teams:int=30,reps:int=10,average:bool=True,away:bool=False,home:bool=False,total:bool=False):
+def simulate_season(N_teams:int=30,reps:int=10,average:bool=True,away:bool=False,home:bool=False,total:bool=False,last_n:int=None):
     tl = team_list(N_teams)
-    season = Season(tl,average=average,away=away,home=home,total=total)
+    season = Season(tl,average=average,away=away,home=home,total=total,last_n=last_n)
     game_date = Date(2019,1,1)
     match_ups = all_match_ups(tl)
     # Generate games with progress bar
@@ -211,5 +244,17 @@ def simulate_season(N_teams:int=30,reps:int=10,average:bool=True,away:bool=False
             game_date = game_date.next_date()
             r = season.add_game(game)
     return season
-def rand_league():
-    pass
+def simulate_season_weird(N_teams:int=30,reps:int=10,average:bool=True,away:bool=False,home:bool=False,total:bool=False,last_n:int=None):
+    tl = team_list(N_teams)
+    season = Season(tl,average=average,away=away,home=home,total=total,last_n=last_n)
+    game_date = Date(2019,1,1)
+    match_ups = all_match_ups(tl)
+    # Generate games with progress bar
+    pbar = tqdm(total=reps*len(match_ups))
+    for i in range(reps):
+        for home,away in match_ups:
+            pbar.update(1)
+            game = simulate_weird_game(home,away,game_date)
+            game_date = game_date.next_date()
+            r = season.add_game(game)
+    return season

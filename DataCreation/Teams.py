@@ -66,6 +66,8 @@ class Team:
         self.record = Record(season_id, self.team_id)
         self.team_stats = TeamStats(self.team_id)
         self.played_dates = DateList()
+        self.played_dates_home = DateList()
+        self.played_dates_away = DateList()
     def add_stats(self, stats:GameStats):
         if not len(self.played_dates):
             # If the team has not played yet, then the categories should be set.
@@ -119,11 +121,18 @@ class Team:
     def get_stat(self, stat:str, date:Date=None)->Stats:
         """ Returns the stat of the team up to that date."""
         return self.team_stats.get_stat(stat, date)
+    def _add_dates(self, date:Date,home:bool):
+        assert isinstance(date, Date), f"date must be of type Date, not {type(date)}"
+        self.played_dates.add_date(date)
+        if home:
+            self.played_dates_home.add_date(date)
+        else:
+            self.played_dates_away.add_date(date)
     def add_game(self, game:Game)->GameResult:
         """ Adds a game to the team. Returns the result of the game, 1 for win, 0 for tie and -1 for loss."""
-        self.played_dates.add_date(game.date)
         assert self.id in game.teams, f"{self.id} is not in {game.teams}"
         home = game.home_team_id == self.id
+        self._add_dates(game.date, home)
         result = self.record.add_game(game.date, game) # Counts the wins, losses and ties.
         self.team_stats.add_game(game, home) # Adds the stats of the game to the team.
         return result
@@ -135,8 +144,6 @@ class Team:
         else:
             raise TypeError(f"occasion must be either Date or Game, not {type(occasion)}")
         return self.team_stats.get_game_stats(date)
-    def dates_played(self)->DateList:
-        return self.played_dates
     @property
     def streak(self)->int:
         return self.record.streak
