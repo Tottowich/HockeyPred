@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List,Dict, Union, Tuple, Optional, TypeVar
+from typing import List, Union, Tuple, Optional, TypeVar
 import numpy as np
 import pandas as pd
 import os
@@ -7,9 +7,9 @@ import sys
 import re
 import datetime as dt
 import matplotlib.pyplot as plt
-from .Representations import Record, SeasonID, TeamID,Game, GameStats,TeamStats,Date,Stats,DateList,GameResult
+from .Representations import Record, SeasonID, TeamID,Game,Date,Stats,GameResult
 from .Teams import Team, TeamList
-
+from tqdm import tqdm
 @dataclass
 class ConfusionMatrix:
     """A confusion matrix for a team list.\n
@@ -105,7 +105,8 @@ class Season:
         self.away:bool = away
         self.total:bool = total
         self.last_n:int = last_n
-        self._init = True   
+        self._init = True
+        self._played_dates = None
     def add_game(self, game:Game,date:Date=None)->GameResult:
         # Retrieve the stats of the teams at the date of the game.
         # Get the result of the game.
@@ -114,14 +115,28 @@ class Season:
         # Add the game to the team's records.
         date = game.date if date is None else date
         home_team_id, away_team_id = game.teams
-        stats_home = []
-        stats_away = []
+        # stats_home = []
+        # stats_away = []
         home_team = self.team_list[home_team_id]
         away_team = self.team_list[away_team_id]
         home_prev_date = home_team.played_dates.get_closest_date(date)
         away_prev_date = away_team.played_dates.get_closest_date(date)
         record_home = home_team.record.record_by_date(home_prev_date)
         record_away = away_team.record.record_by_date(away_prev_date)
+        # This is quite ugly, but it works.
+        stats_home,stats_away = self._get_stats(home_team, away_team, date)
+        result = game.result
+        # print(f"Adding game: {game} - score {result.one_hot} to {self.season_id}.")
+        self.games.append((date, stats_home,record_home, stats_away, record_away, result))
+        self.confusion_matrix.add_game(result.winner, result.loser)
+        # Add the game to the team's records.
+        self.team_list[home_team_id].add_game(game)
+        self.team_list[away_team_id].add_game(game)
+        return result
+    def _get_stats(self, home_team:Team, away_team:Team, date:Date)->Tuple[List[Stats],List[Stats]]:
+        # Get the stats of the teams at the date of the game.
+        stats_home = []
+        stats_away = []
         if self.last_n:
             # Get all the dates of the last n games
             dates_home = home_team.played_dates.get_n_closest_dates(date, self.last_n)
@@ -155,14 +170,7 @@ class Season:
             if self.last_n:
                 stats_home.append(home_team.team_stats.dates_to_statlist(dates_home).total())
                 stats_away.append(away_team.team_stats.dates_to_statlist(dates_away).total())
-        result = game.result
-        # print(f"Adding game: {game} - score {result.one_hot} to {self.season_id}.")
-        self.games.append((date, stats_home,record_home, stats_away, record_away, result))
-        self.confusion_matrix.add_game(result.winner, result.loser)
-        # Add the game to the team's records.
-        self.team_list[home_team_id].add_game(game)
-        self.team_list[away_team_id].add_game(game)
-        return result
+        return stats_home, stats_away
     def print_games(self,n:int=None)->None:
         # Print the games in the season.
         index_to_stat_type = self.index_desc
@@ -220,7 +228,126 @@ class Season:
         # Sort the games in the season.
         self.games.sort(key=lambda x: x[0]) # Sort by date
         return self.games
-from tqdm import tqdm
+    def stats_to_pandas(self,stat:str)->pd.DataFrame:
+        """Store the stat for each team at each date in a pandas dataframe.
+        Structre of the dataframe:
+
+        Header: | Date | Team | Team | Team | ... |
+        Row:    | Date | Stat | Stat | Stat | ... |
+        """
+        self.sort_games()
+        # Create the header.
+        header = ["Date"]
+        for team in self.team_list:
+            header.append(team.name)
+        # Create the rows.
+        rows = []
+        for date in self.played_dates:
+            row = [str(date)]
+            for team in self.team_list:
+                if stat.lower() not in ["win%","win percentage"]:
+                    row.append(team.get_stat_to_date(date,stat))
+                else:
+                    row.append(team.record.win_percentage)
+                # row.append(team.get_stat_per_game(date,stat))
+            rows.append(row)
+        # Create the dataframe.
+        df = pd.DataFrame(rows,columns=header)
+        return df
+    def last_date(self)->Date:
+        # Find the maximum date in the season.
+        return max(self.games,key=lambda x: x[0])[0]
+    def first_date(self)->Date:
+        # Find the minimum date in the season.
+        return min(self.games,key=lambda x: x[0])[0]
+    @property
+    def played_dates(self)->list[Date]:
+        if not self._played_dates:
+            self._all_played_dates()
+        return self._played_dates
+    @property
+    def number_of_teams(self)->int:
+        return len(self.team_list)
+    def _all_played_dates(self)->list[Date]:
+        # Find all the dates in the season.
+        self._played_dates = []
+        for game in self.games:
+            date, stats_home, record_home, stats_away, record_away, result = game
+            if date not in self._played_dates:
+                self._played_dates.append(date)
+        self._played_dates.sort()
+        return self._played_dates
+
+
+
+from matplotlib.animation import FuncAnimation
+class SeasonVisualizer:
+    """
+    Class to help visualize a season.
+    The visualizable for any given Date will be:    
+        - The confusion matrix.
+        - The team records, sorted by win percentage.
+        - The team stats, sorted by the given stat.
+        - Animation of the confusion matrix through time.
+        - Animation of the team rankings through time.
+        - Animation of the team stats through time.
+    Animations are handled by matplotlib.animation.FuncAnimation.
+    """
+    def __init__(self,season:Season):
+        self._season = season
+        self._season.sort_games()
+        self._last_date = season.last_date()
+        self._first_date = season.first_date()
+    def _nice_axes(self,ax:plt.Axes):
+        ax.set_facecolor('.8')
+        ax.tick_params(labelsize=8, length=0)
+        ax.grid(True, axis='x', color='white')
+        ax.set_axisbelow(True)
+        [spine.set_visible(False) for spine in ax.spines.values()]
+        return ax
+    def animate(self,stat:str='Win%',save:bool=False,figsize:tuple=(10,10),interval:int=100):
+        """
+        Animate the season based on the given stat.
+        """
+        import bar_chart_race as bcr
+        self._season.sort_games()
+        played_dates = self._season.played_dates
+        df = self._season.stats_to_pandas(stat)
+        # print(f"df: {df}")
+        # html = bcr.bar_chart_race(df=df,filename="test.gif",figsize=figsize,period_length=len(played_dates))
+        # print(f"Played dates: {played_dates}")
+        # exit()
+        fig = plt.figure(figsize=figsize)
+        ax = fig.add_subplot()
+        colors = plt.cm.Dark2(range(self._season.number_of_teams))
+        def init():
+            print(f"Initalizing animation for stat: {stat}")
+            ax.clear()
+            self._nice_axes(ax)
+            # Set the y axis to be the team names.
+            ax.set_yticks(range(self._season.number_of_teams))
+            ax.set_yticklabels(self._season.team_list.team_names)
+        def update(i):
+            for bar in ax.containers:
+                bar.remove()
+            name_value_list = self._season.team_list.team_stat_list(stat,date=self._season.played_dates[i])
+            name_value_list.sort(key=lambda x: x[1],reverse=False)
+            print(f"Name value list: {name_value_list}")
+            names = [name for name,value in name_value_list]
+            values = [value for name,value in name_value_list]
+            # The x axis will be the stat value.
+            # The y axis will be the team names, should be sorted by the stat value.
+            ax.barh(range(self._season.number_of_teams),values,color=colors)
+            ax.set_title(f"Season {stat} on {self._season.played_dates[i]}")
+        # anim = FuncAnimation(fig=fig, func=update, init_func=init, frames=len(self._season.played_dates), interval=200, repeat=False,blit=False)
+        # # View the animation.
+        # if save:
+        #     anim.save(f"Season_{stat}.gif", writer='imagemagick')
+        # plt.show()
+    
+        # return anim
+
+
 class SeasonExporter:
     """
     Export a season to a file.

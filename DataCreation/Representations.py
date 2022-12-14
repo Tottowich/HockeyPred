@@ -305,6 +305,7 @@ class Stats:
             print(f"WARNING: Key \'{key}\' not found in stats, replacing with 0")
             return 0
         return v
+
     def __eq__(self, other:"Stats"):
         raise NotImplementedError("Cannot compare Stats objects")
     def __radd__(self, other:"Stats"): # This is called when the other object is not a Stats object
@@ -734,7 +735,7 @@ class Record:
         self._add_history_entry(date, result)
         return result
     def _add_history_entry(self, date:Date, result:GameResult):
-        self._history[date] = [result,self.w_l_t] # Add the result to the history
+        self._history[date] = [result,self.w_l_t,self.streak] # Add the result to the history
     def add_win(self):
         """Adds a win to the record"""
         self._wins += 1
@@ -770,41 +771,47 @@ class Record:
 
     def record_by_date(self, date:Date):
         """Returns the record up to and including the given date"""
-        # First check if the date is valid:
-        # assert date >= self._history[0][0], f"Date {date} is before the first game in the record."
-        
-        # Now we can get the record up to the given date:
-        _,record = self._history.get(date, (None,None))
+        _,record,*_ = self._history.get(date, (None,None,None))
         return record
+    def win_percentage_by_date(self, date:Date):
+        """Returns the win percentage up to and including the given date"""
+
+        record = self.record_by_date(date)
+        if record is not None:
+            return record[0] / sum(record)
+        return 0
+    def streak_by_date(self, date:Date):
+        """Returns the streak up to and including the given date"""
+        _,_,streak = self._history.get(date, (None,None,None))
+        return streak
 
 
-
-    def __getitem__(self, key):
+    def __getitem__(self, key)->Tuple[GameResult,Tuple[int,int,int],int]:
         assert isinstance(key, Date), f"Key must be a Date got {type(key)}"
         return self._history[key]
     @property
-    def wins(self):
+    def wins(self)->int:
         return self._wins
     @property
-    def losses(self):
+    def losses(self)->int:
         return self._losses
     @property
-    def ties(self):
+    def ties(self)->int:
         return self._ties
     @property
-    def w_l_t(self):
+    def w_l_t(self)->Tuple[int,int,int]:
         return (self.wins,self.losses,self.ties)
     @property
-    def games_played(self):
+    def games_played(self)->int:
         return self._wins + self._losses + self._ties
     @property
-    def win_percentage(self):
+    def win_percentage(self)->float:
         return self._wins / self.games_played
     @property
-    def loss_percentage(self):
+    def loss_percentage(self)->float:
         return self._losses / self.games_played
     @property
-    def tie_percentage(self):
+    def tie_percentage(self)->float:
         return self._ties / self.games_played
     def __str__(self) -> str:
-        return f"{self.team_id.name} has a record of {self._wins}-{self._losses}-{self._ties} in the {self.season.season_id} season."
+        return f"{self.team_id.name} has a record of {self._wins}-{self._losses}-{self._ties}."

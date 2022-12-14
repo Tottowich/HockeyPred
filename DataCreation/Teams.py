@@ -121,6 +121,9 @@ class Team:
     def get_stat(self, stat:str, date:Date=None)->Stats:
         """ Returns the stat of the team up to that date."""
         return self.team_stats.get_stat(stat, date)
+    def get_stat_per_game(self, stat:str, date:Date=None)->Stats:
+        """ Returns the stat of the team per game up to that date."""
+        return self.team_stats.get_stat_per_game(stat, date)
     def _add_dates(self, date:Date,home:bool):
         assert isinstance(date, Date), f"date must be of type Date, not {type(date)}"
         self.played_dates.add_date(date)
@@ -144,6 +147,22 @@ class Team:
         else:
             raise TypeError(f"occasion must be either Date or Game, not {type(occasion)}")
         return self.team_stats.get_game_stats(date)
+    def win_percentage_by_date(self, date:Date)->int:
+        # Get closest date before date
+        if date in self.played_dates:
+            return self.record.win_percentage_by_date(date)
+        date = self.played_dates.get_closest_date(date)
+        if date is None:
+            return 0
+        return self.record.win_percentage_by_date(date)
+    def streak_by_date(self, date:Date)->int:
+        # Get closest date before date
+        if date in self.played_dates:
+            return self.record.streak_by_date(date)
+        date = self.played_dates.get_closest_date(date)
+        if date is None:
+            return 0
+        return self.record.streak_by_date(date)
     @property
     def streak(self)->int:
         return self.record.streak
@@ -208,12 +227,31 @@ class TeamList:
             return sorted(self.teams, key=lambda x: x.city)
     def sort_by_stat(self, stat:str,date:Date=None,reverse:bool=True,in_place:bool=False)->Union[List[Team],None]:
         # return self.teams.sort(key=lambda x: x.get_stat(stat, date), reverse=reverse) # Inplace sort
+        if stat.lower()=="win%" or stat.lower()=="win percentage":
+            return self.sort_by_record(date,reverse,in_place)
         if in_place:
-            return self.teams.sort(key=lambda x: x.get_stat(stat, date), reverse=reverse)
+            return self.teams.sort(key=lambda x: x.get_stat_per_game(stat, date), reverse=reverse)
         else:
-            return sorted(self.teams, key=lambda x: x.get_stat(stat, date), reverse=reverse)
-        #      return self.teams.sort(key=lambda x: x.get_stat(stat,date), reverse=reverse) # Inplace sort
-        # #return sorted(self.teams, key=lambda x: x.get_stat(stat))
+            return sorted(self.teams, key=lambda x: x.get_stat_per_game(stat, date), reverse=reverse)
+    def sort_by_record(self, date:Date=None,reverse:bool=True,in_place:bool=False)->Union[List[Team],None]:
+        # Sort by team.record.win_percentage
+        if in_place:
+            return self.teams.sort(key=lambda x: x.record.record_by_date(date), reverse=reverse)
+        else:
+            return sorted(self.teams, key=lambda x: x.record.record_by_date(date), reverse=reverse)
+    def sort_by_streak(self, date:Date=None,reverse:bool=True,in_place:bool=False)->Union[List[Team],None]:
+        # Sort by team.record.win_percentage
+        if in_place:
+            return self.teams.sort(key=lambda x: x.streak_by_date(date), reverse=reverse)
+        else:
+            return sorted(self.teams, key=lambda x: x.streak_by_date(date), reverse=reverse)
+    def sort_by_win_percentage(self, date:Date=None,reverse:bool=True,in_place:bool=False)->Union[List[Team],None]:
+        # Sort by team.record.win_percentage
+        if in_place:
+            return self.teams.sort(key=lambda x: x.record.win_percentage_by_date(date), reverse=reverse)
+        else:
+            return sorted(self.teams, key=lambda x: x.record.win_percentage_by_date(date), reverse=reverse)
+
     def get_team_stats_to_date(self, date:Date)->List[GameStats]:
         return [team.total_to_date(date) for team in self.teams]
     def get_team_stats(self)->List[GameStats]:
@@ -222,7 +260,22 @@ class TeamList:
         self.sort_by_stat(stat, date, reverse)
         print(f"Rankings by {stat}"+(" to date" if date is not None else ""))
         for i, team in enumerate(self.teams):
-            print(f"{i+1}. {team.name} ({team.id}) - {team.get_stat(stat, date)}")
+            print(f"{i+1}. {team.name} ({team.id}) - {team.get_stat_per_game(stat, date)}")
+    def team_stat_list(self, stat:str="Goals", date:Date=None, reverse:bool=True)->List[Tuple[str,float]]:
+        """Return a list of tuples (team name, stat value)"""
+        # Create a list with tuple (team name, stat value)
+        if stat.lower() in ["win%","win percentage"]:
+            team_stat_list = []
+            for team in self.teams:
+                closest_date = team.played_dates.get_closest_date(date)
+                team_stat_list.append((team.name, team.record.win_percentage_by_date(closest_date)))
+        else:
+            team_stat_list = []
+            for team in self.teams:
+                closest_date = team.played_dates.get_closest_date(date)
+                team_stat_list.append((team.name, team.get_stat_per_game(stat,closest_date)))
+            # team_stat_list = [(team.name, team.get_stat_per_game(stat, date)) for team in self.teams]
+        return team_stat_list
     def __getitem__(self, item:TeamID)->Team:
         if isinstance(item, TeamID):
             return self.team_dict[item]

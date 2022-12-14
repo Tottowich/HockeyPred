@@ -71,9 +71,14 @@ def test_exporting_season(N:int=30,reps:int=10):
     season = simulate_season_weird(reps=reps,average=True,home=True,away=True,last_n=10)
     se = SeasonExporter(season)
     se.export()
+def test_visualizer():
+    # season = simulate_season(reps=1,average=True,home=True,away=True,last_n=10)
+    season_weird = simulate_season_weird(N_teams=2,reps=100,average=True,home=True,away=True,last_n=10)
+    sv = SeasonVisualizer(season_weird)
+    sv.animate()
 def main():
     # test_season_weird(reps=1)
     # test_team_list()
-    test_exporting_season(reps=5)
+    test_visualizer()
 if __name__ == '__main__':
     main()
