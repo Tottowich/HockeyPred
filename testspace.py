@@ -1,6 +1,8 @@
 from testingfunctions import *
-from DataCreation.Teams import *
-from DataCreation.Season import *
+from DataRepresentations.Teams import *
+from DataRepresentations.Season import *
+from DataScraping.representations import *
+from DataScraping.utils import *
 def test_team_list(N:int=30):
     tl = team_list(N)
     # for team in tl:
@@ -76,9 +78,24 @@ def test_visualizer():
     season_weird = simulate_season_weird(N_teams=2,reps=100,average=True,home=True,away=True,last_n=10)
     sv = SeasonVisualizer(season_weird)
     sv.animate()
+def test_web_season():
+    main_page = "https://www.hockey-reference.com/leagues/"
+    # Get the soup
+    soup = get_soup(main_page)
+    # Get all the links in the soup
+    links = get_all_links(soup)
+    # Get the links that are seasons
+    seasons = [link for link in links if "/leagues/NHL_"in link and link.split("_")[-1].split(".")[0].isnumeric()]
+    # Remove duplicates
+    seasons = list(set(seasons))
+    # Sort the seasons
+    seasons.sort()
+    web_season = WebSeason("https://www.hockey-reference.com"+seasons[-1],verbose=True)
+
 def main():
     # test_season_weird(reps=1)
     # test_team_list()
-    test_visualizer()
+    # test_visualizer()
+    test_web_season()
 if __name__ == '__main__':
     main()

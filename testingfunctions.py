@@ -1,10 +1,10 @@
 
 from tqdm import tqdm
-from DataCreation.Teams import *
-from DataCreation.Season import *
-from DataCreation.Representations import SeasonID,TeamID
-from DataCreation.Representations import Record,Game,Date
-from DataCreation.Representations import Record, GameStats,TeamStats
+from DataRepresentations.Teams import *
+from DataRepresentations.Season import *
+from DataRepresentations.Representations import SeasonID,TeamID
+from DataRepresentations.Representations import Record,Game,Date
+from DataRepresentations.Representations import Record, GameStats,TeamStats
 from typing import List, Union
 import random
 from itertools import permutations
